@@ -194,6 +194,10 @@
   #legend-box .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
   #legend-box .nm{flex:1;color:#c8d3e8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #legend-box .cnt{color:#66748f;font-family:ui-monospace,monospace;font-size:.65rem}
+  #paste-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    color:#66748f;font-size:.9rem;text-align:center;pointer-events:none;
+    z-index:5;line-height:1.6}
+  #paste-hint b{color:#a5b4fc;display:block;font-size:1.1rem;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -210,7 +214,7 @@
     <div class="sep"></div>
     <button id="tb-new">🆕 New</button>
     <button id="tb-open">📁 Open Image</button>
-    <button id="tb-paste">📋 Paste Img</button>
+    <button id="tb-paste">📋 Paste Image</button>
     <button id="tb-load-json">📂 Load Layout</button>
     <button id="tb-save-json">💾 Save Layout</button>
     <div class="sep"></div>
@@ -249,7 +253,7 @@
     <button class="tbtn" data-tool="dim-h"><span>↔️</span><span class="tip">H-Dimension</span></button>
     <button class="tbtn" data-tool="dim-v"><span>↕️</span><span class="tip">V-Dimension</span></button>
     <div class="sep"></div>
-    <button class="tbtn" data-tool="leader"><span>📌</span><span class="tip">Leader Line (Click tag, then target)</span></button>
+    <button class="tbtn" data-tool="leader"><span>📌</span><span class="tip">Leader Line</span></button>
     <button class="tbtn" data-tool="erase"><span>🧹</span><span class="tip">Eraser (E)</span></button>
     <div class="sep"></div>
     <button class="tbtn" id="tbtn-layers"><span>🗂️</span><span class="tip">Layer stack</span></button>
@@ -435,6 +439,14 @@
           <button class="pbtn" id="sel-dup">📑 <span>Duplicate</span></button>
           <button class="pbtn danger" id="sel-del">🗑️ <span>Delete</span></button>
         </div>
+        <div class="prow">
+          <button class="pbtn" id="sel-ungroup" style="background:#7c2d12;border-color:#a16207;color:#fed7aa">
+            💔 <span>Ungroup</span>
+          </button>
+          <button class="pbtn" id="sel-explode" style="background:#7c2d12;border-color:#a16207;color:#fed7aa">
+            💥 <span>Explode</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -476,19 +488,26 @@
 
     <h3 data-target="sec-help">❓ Help <span class="chev">▼</span></h3>
     <div class="psection" id="sec-help" style="font-size:.68rem;color:#8b9dc3;line-height:1.7">
+      <div><b style="color:#a5b4fc">Paste image:</b> Ctrl+V (after screenshot)</div>
+      <div><b style="color:#a5b4fc">Paste objects:</b> Ctrl+V (with items copied)</div>
       <div><b style="color:#a5b4fc">Place stencil:</b> click it, then click canvas</div>
-      <div><b style="color:#a5b4fc">Cancel placement:</b> Esc</div>
+      <div><b style="color:#a5b4fc">Ungroup:</b> split label from shape (keeps both)</div>
+      <div><b style="color:#a5b4fc">Explode:</b> split group into raw parts</div>
       <div><b style="color:#a5b4fc">Copy:</b> Ctrl+C / <b>Paste:</b> Ctrl+V</div>
       <div><b style="color:#a5b4fc">Cut:</b> Ctrl+X</div>
       <div><b style="color:#a5b4fc">Zoom:</b> Ctrl + scroll</div>
       <div><b style="color:#a5b4fc">Pan:</b> Space + drag or H</div>
       <div><b style="color:#a5b4fc">Fit:</b> F</div>
-      <div><b style="color:#a5b4fc">Leader:</b> click tag then target</div>
     </div>
   </aside>
 
   <main id="stage">
     <div id="canvas-holder"><canvas id="c"></canvas></div>
+    <div id="paste-hint">
+      <b>📋 Paste to begin</b>
+      Press Ctrl+V to paste a screenshot<br>
+      or click 📁 Open Image in the toolbar
+    </div>
     <div id="canvastools">
       <button id="ct-zoom-fit" title="Fit (F)">🎯</button>
       <button id="ct-zoom-out">－</button>
@@ -574,7 +593,7 @@ function loadFabric(i = 0){
    2. STORAGE
    ===================================================================== */
 const Storage = {
-  KEY: 'telecom_site_v7',
+  KEY: 'telecom_site_v8',
   available(){
     try { const k='__t'+Math.random(); localStorage.setItem(k,'1');
           localStorage.removeItem(k); return true; } catch(_){ return false; }
@@ -619,7 +638,6 @@ let suppressPanelSync = false;
 const CW = 1600, CH = 1000;
 const M2PX = 20;
 
-/* Cable-type palette with labels */
 const PALETTE = [
   { hex:'#ef4444', label:'Data / CAT6' },
   { hex:'#f97316', label:'Fire Alarm' },
@@ -778,6 +796,9 @@ function makeDetachedLabel(text, x, y, opt){
 
 /* =====================================================================
    6. STENCIL LIBRARY
+   ---------------------------------------------------------------------
+   IMPORTANT: label texts are NOT drawn inside the group. They are
+   returned in the `labels` array and placed as separate objects.
    ===================================================================== */
 const STENCILS = {
 
@@ -849,8 +870,7 @@ const STENCILS = {
     grp._stretchAxis = 'x';
     grp._minLength = 40;
     return { group: grp, labels: [
-      { text:'CEMENT FENCE', x: 0, y: -22, kind:'equipment' },
-      { text:`${(W/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
+      { text:'CEMENT FENCE', x: 0, y: -22, kind:'equipment' }
     ]};
   },
 
@@ -875,12 +895,9 @@ const STENCILS = {
       { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[2,2],
         selectable:false, strokeUniform: true }));
     parts.push(mkRect(6, 6, 24, 12, { fill:'#dbeafe', stroke:'#1e3a8a' }));
-    parts.push(mkText('AC', 14, 9, 7, { fill:'#1e3a8a', selectable:false }));
     parts.push(mkRect(W-24, H-14, 18, 8, { fill:'#fef3c7', stroke:'#a16207' }));
-    parts.push(mkText('ENTRY', W-24, H-6, 6, { fill:'#7c2d12', selectable:false }));
     return { group: mkGroup(parts, 'Shelter'), labels: [
-      { text:'SHELTER', x: 0, y: -18, kind:'equipment' },
-      { text:`${(W/M2PX).toFixed(1)}×${(H/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
+      { text:'SHELTER', x: 0, y: -18, kind:'equipment' }
     ]};
   },
   stairs(){
@@ -934,8 +951,7 @@ const STENCILS = {
     parts.push(mkLine(S, 0, 0, S, { stroke:'#0f172a', strokeWidth:0.8, strokeDashArray:[4,3] }));
     parts.push(mkCircle(S/2, S/2, 8, { fill:'#334155', stroke:'#0f172a', strokeWidth:1.5 }));
     return { group: mkGroup(parts, '4-Leg Tower'), labels: [
-      { text:'4-LEG TOWER', x: 0, y: -22, kind:'equipment' },
-      { text:`${(S/M2PX).toFixed(1)}m × ${(S/M2PX).toFixed(1)}m`, x: 0, y: S + 6, kind:'dim' }
+      { text:'4-LEG TOWER', x: 0, y: -22, kind:'equipment' }
     ]};
   },
   tower3(){
@@ -1007,12 +1023,8 @@ const STENCILS = {
       { fill:'#dbeafe', stroke:'#1e3a8a', strokeWidth:1 }));
     parts.push(mkCircle(gx + genW*0.55, gy - 4, 4,
       { fill:'#94a3b8', stroke:'#334155', strokeWidth:1 }));
-    parts.push(mkText('GENSET', gx + genW/2 - 24, gy + genH/2 - 4, 10,
-      { fontWeight:'700', fill:'#7c2d12', selectable:false }));
     return { group: mkGroup(parts, 'Generator'), labels: [
-      { text:'GENERATOR + PAD', x: 0, y: -22, kind:'equipment' },
-      { text:`${(padW/M2PX).toFixed(1)}×${(padH/M2PX).toFixed(1)}m`,
-        x: 0, y: padH + 6, kind:'dim' }
+      { text:'GENERATOR + PAD', x: 0, y: -22, kind:'equipment' }
     ]};
   },
   fuel(){
@@ -1025,11 +1037,8 @@ const STENCILS = {
     parts.push(mkCircle(R, R - R*0.55, R*0.12, { fill:'#7f1d1d', stroke:'none' }));
     parts.push(mkCircle(R + R*0.55, R, R*0.12, { fill:'#0891b2', stroke:'none' }));
     parts.push(mkCircle(R, R + R*0.55, R*0.12, { fill:'#334155', stroke:'none' }));
-    parts.push(mkText('FUEL', R - 16, R - 4, 9,
-      { fontWeight:'700', fill:'#7f1d1d', selectable:false }));
     return { group: mkGroup(parts, 'Fuel Tank'), labels: [
-      { text:'FUEL TANK', x: 0, y: -R*1.5 - 6, kind:'equipment' },
-      { text:`Ø${(2*R/M2PX).toFixed(1)}m`, x: 0, y: R*1.5 + 6, kind:'dim' }
+      { text:'FUEL TANK', x: 0, y: -R*1.5 - 6, kind:'equipment' }
     ]};
   },
   transformer(){
@@ -1050,12 +1059,8 @@ const STENCILS = {
       parts.push(mkLine(-2 - i*2, 4, -2 - i*2, H - 4,
         { stroke:'#78350f', strokeWidth:0.8 }));
     }
-    parts.push(mkText('TX', W/2 - 8, H/2 - 4, 9,
-      { fontWeight:'700', fill:'#78350f', selectable:false }));
     return { group: mkGroup(parts, 'Transformer'), labels: [
-      { text:'TRANSFORMER', x: 0, y: -22, kind:'equipment' },
-      { text:'HV', x: -20, y: -16, kind:'mark', fill:'#dc2626', fontSize:8 },
-      { text:'LV', x: -20, y: H + 10, kind:'mark', fill:'#2563eb', fontSize:8 }
+      { text:'TRANSFORMER', x: 0, y: -22, kind:'equipment' }
     ]};
   },
   battery(){
@@ -1067,8 +1072,6 @@ const STENCILS = {
         { fill:'#dbeafe', stroke:'#1e3a8a', strokeWidth:1.2 }));
       parts.push(mkCircle(i*cw + 4, 4, 2, { fill:'#dc2626', stroke:'none' }));
       parts.push(mkCircle(i*cw + cw - 4, 4, 2, { fill:'#1e293b', stroke:'none' }));
-      parts.push(mkText(String(i+1), i*cw + cw/2 - 3, H/2 - 3, 8,
-        { fill:'#1e3a8a', selectable:false }));
     }
     return { group: mkGroup(parts, 'Battery Bank'), labels: [
       { text:'BATTERY BANK', x: 0, y: -18, kind:'equipment' }
@@ -1095,9 +1098,7 @@ const STENCILS = {
     const grp = mkGroup(parts, 'Cement Basepad');
     grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 40;
     return { group: grp, labels: [
-      { text:'CEMENT BASEPAD', x: 0, y: -20, kind:'equipment' },
-      { text:`${(W/M2PX).toFixed(1)} × ${(H/M2PX).toFixed(1)} m`,
-        x: 0, y: H + 6, kind:'dim' }
+      { text:'CEMENT BASEPAD', x: 0, y: -20, kind:'equipment' }
     ]};
   },
   basepad_gen(){
@@ -1108,14 +1109,10 @@ const STENCILS = {
       fill:'rgba(254,243,199,0.55)',
       stroke:'#78350f', strokeWidth: 2
     }));
-    parts.push(mkText('GEN PAD', W/2 - 30, H/2 - 4, 9,
-      { fontWeight:'700', fill:'#78350f', selectable:false }));
     const grp = mkGroup(parts, 'Gen Basepad');
     grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 40;
     return { group: grp, labels: [
-      { text:'GENERATOR BASEPAD', x: 0, y: -20, kind:'equipment' },
-      { text:`${(W/M2PX).toFixed(1)}×${(H/M2PX).toFixed(1)}m`,
-        x: 0, y: H + 6, kind:'dim' }
+      { text:'GENERATOR BASEPAD', x: 0, y: -20, kind:'equipment' }
     ]};
   },
   basepad_tx(){
@@ -1126,8 +1123,6 @@ const STENCILS = {
       fill:'rgba(254,243,199,0.65)',
       stroke:'#78350f', strokeWidth: 2
     }));
-    parts.push(mkText('TX PAD', W/2 - 24, H/2 - 4, 9,
-      { fontWeight:'700', fill:'#78350f', selectable:false }));
     const grp = mkGroup(parts, 'TX Basepad');
     grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 30;
     return { group: grp, labels: [
@@ -1182,8 +1177,7 @@ const STENCILS = {
     const grp = mkGroup(parts, 'Cable Tray');
     grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 20;
     return { group: grp, labels: [
-      { text:'CABLE TRAY', x: 0, y: -14, kind:'equipment' },
-      { text:`${(W/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
+      { text:'CABLE TRAY', x: 0, y: -14, kind:'equipment' }
     ]};
   },
   openrack(){
@@ -1288,8 +1282,6 @@ function cabGeneric(bays, name){
     parts.push(mkLine(i*W/bays, 2, i*W/bays, H-2,
       { stroke:'#475569', strokeWidth:0.8 }));
   }
-  parts.push(mkText(bays+'B', W/2 - 8, H/2 - 4, 8,
-    { fontWeight:'700', selectable:false }));
   return { group: mkGroup(parts, name), labels: [
     { text: name.toUpperCase(), x: 0, y: -16, kind:'equipment' }
   ]};
@@ -1412,10 +1404,11 @@ function initCanvas(){
       makeHitFriendly(o);
       o._visible = o._visible !== false;
     }
+    hidePasteHintIfEmpty();
     markDirty(); refreshPanels(); refreshLayers(); refreshLegend();
   });
   canvas.on('object:modified', () => { markDirty(); refreshPanels(); syncSelectionPanel(); refreshLayers(); });
-  canvas.on('object:removed',  () => { refreshPanels(); refreshLayers(); refreshLegend(); });
+  canvas.on('object:removed',  () => { refreshPanels(); refreshLayers(); refreshLegend(); hidePasteHintIfEmpty(); });
   canvas.on('selection:created', () => { refreshPanels(); syncSelectionPanel(); refreshLayers(); });
   canvas.on('selection:updated', () => { refreshPanels(); syncSelectionPanel(); refreshLayers(); });
   canvas.on('selection:cleared', () => { refreshPanels(); syncSelectionPanel(); refreshLayers(); });
@@ -1516,7 +1509,6 @@ function onDown(opt){
     return;
   }
 
-  // Leader line: two-click tool
   if (currentTool === 'leader'){
     const p = canvas.getPointer(opt.e);
     if (!leaderStart){
@@ -1528,7 +1520,6 @@ function onDown(opt){
       canvas.add(leaderPreview);
       toast('Now click the target point');
     } else {
-      // Finalize
       canvas.remove(leaderPreview);
       const sColor = $('stroke-color').value;
       const ln = new fabric.Line([leaderStart.x, leaderStart.y, p.x, p.y], {
@@ -1538,13 +1529,11 @@ function onDown(opt){
       ln._isLeader = true;
       ln._uid = uid();
       canvas.add(ln);
-      // Add a small tag circle at start
       const tag = mkCircle(leaderStart.x, leaderStart.y, 4,
         { fill: sColor, stroke:'#ffffff', strokeWidth: 1 });
       tag._isLeader = true;
       tag._uid = uid();
       canvas.add(tag);
-      // Auto add a text at start
       const txt = new fabric.IText('NOTE', {
         left: leaderStart.x + 10, top: leaderStart.y - 8,
         fontSize: 11, fill: '#0f172a',
@@ -1935,14 +1924,12 @@ document.querySelectorAll('.stencil').forEach(el => {
   };
 });
 
-/* Stencil search filter */
 $('stencil-search').addEventListener('input', e => {
   const q = e.target.value.toLowerCase().trim();
   document.querySelectorAll('#stencil-panel .stencil').forEach(el => {
     const name = (el.dataset.name || el.textContent).toLowerCase();
     el.classList.toggle('hidden', q && !name.includes(q));
   });
-  // Hide empty category headers
   const headers = document.querySelectorAll('#stencil-panel h4[data-cat]');
   headers.forEach(h => {
     let sibling = h.nextElementSibling;
@@ -1954,7 +1941,6 @@ $('stencil-search').addEventListener('input', e => {
       sibling = sibling.nextElementSibling;
     }
     h.style.display = hasVisible ? '' : 'none';
-    // Hide the grid too if empty
     let sib = h.nextElementSibling;
     while (sib && sib.tagName !== 'H4'){
       if (sib.classList.contains('stencil-grid')){
@@ -1965,12 +1951,10 @@ $('stencil-search').addEventListener('input', e => {
   });
 });
 
-/* Layer stack panel */
 $('tbtn-layers').onclick = () => {
   $('layer-stack').classList.toggle('open');
   refreshLayers();
 };
-/* Legend panel */
 $('tbtn-legend').onclick = () => {
   $('legend-box').classList.toggle('open');
   refreshLegend();
@@ -2008,9 +1992,15 @@ function hexAlphaOf(rgba){
   const m = rgba.match(/rgba\([^)]+,\s*([\d.]+)\s*\)/);
   return m ? parseFloat(m[1]) : 1;
 }
+function hidePasteHintIfEmpty(){
+  const hasObjects = canvas.getObjects().some(o => !o.isBackground);
+  const hasBg = !!canvas.backgroundImage;
+  const hint = $('paste-hint');
+  if (hint) hint.style.display = (hasObjects || hasBg) ? 'none' : 'block';
+}
 
 /* =====================================================================
-   15. LAYER STACK PANEL
+   15. LAYER STACK
    ===================================================================== */
 function refreshLayers(){
   const objs = canvas.getObjects().filter(o => !o.isBackground);
@@ -2055,7 +2045,7 @@ function refreshLayers(){
 }
 
 /* =====================================================================
-   16. LEGEND PANEL
+   16. LEGEND
    ===================================================================== */
 function refreshLegend(){
   const wrap = $('legend-items');
@@ -2095,14 +2085,10 @@ function showSelField(id, on){
 function syncSelectionPanelLight(){
   const o = canvas.getActiveObject();
   if (!o) return;
-  if ($('sel-x') !== document.activeElement)
-    $('sel-x').value = Math.round(o.left || 0);
-  if ($('sel-y') !== document.activeElement)
-    $('sel-y').value = Math.round(o.top || 0);
-  if ($('sel-w') !== document.activeElement)
-    $('sel-w').value = Math.round((o.width || 0) * (o.scaleX || 1));
-  if ($('sel-h') !== document.activeElement)
-    $('sel-h').value = Math.round((o.height || 0) * (o.scaleY || 1));
+  if ($('sel-x') !== document.activeElement) $('sel-x').value = Math.round(o.left || 0);
+  if ($('sel-y') !== document.activeElement) $('sel-y').value = Math.round(o.top || 0);
+  if ($('sel-w') !== document.activeElement) $('sel-w').value = Math.round((o.width || 0) * (o.scaleX || 1));
+  if ($('sel-h') !== document.activeElement) $('sel-h').value = Math.round((o.height || 0) * (o.scaleY || 1));
   if ($('sel-angle') !== document.activeElement){
     const ang = Math.round(o.angle || 0);
     $('sel-angle').value = ang;
@@ -2228,7 +2214,47 @@ function applyToSelection(fn){
 }
 
 /* =====================================================================
-   18. PROPERTY EVENT BINDINGS
+   18. UNGROUP + EXPLODE
+   ===================================================================== */
+function ungroupSelected(){
+  const o = canvas.getActiveObject();
+  if (!o || o.type !== 'group'){
+    toast('Select a group to ungroup', 'warn');
+    return;
+  }
+  // "Ungroup" keeps children as individual objects
+  const items = o.getObjects().slice();
+  o._restoreObjectsState();
+  canvas.remove(o);
+  items.forEach(child => {
+    child.set({ selectable: true, evented: true, perPixelTargetFind: false });
+    if (!child._uid) child._uid = uid();
+    canvas.add(child);
+  });
+  canvas.discardActiveObject();
+  canvas.requestRenderAll();
+  pushHistory();
+  refreshPanels(); refreshLayers(); refreshLegend();
+  syncSelectionPanel();
+  toast('Ungrouped ' + items.length + ' parts', 'ok');
+}
+
+function explodeSelected(){
+  const o = canvas.getActiveObject();
+  if (!o){
+    toast('Select an object first', 'warn');
+    return;
+  }
+  if (o.type !== 'group'){
+    toast('Only groups can be exploded', 'warn');
+    return;
+  }
+  // "Explode" → same as ungroup for our purposes
+  ungroupSelected();
+}
+
+/* =====================================================================
+   19. PROPERTY EVENT BINDINGS
    ===================================================================== */
 function bindPropertyControls(){
   const bind = (id, ev, handler) => {
@@ -2402,8 +2428,9 @@ function bindPropertyControls(){
   bind('sel-paste', 'click', () => pasteClipboard());
   bind('sel-dup', 'click', () => duplicateSel());
   bind('sel-del', 'click', () => deleteSel());
+  bind('sel-ungroup', 'click', () => ungroupSelected());
+  bind('sel-explode', 'click', () => explodeSelected());
 
-  /* Collapsible sections */
   document.querySelectorAll('#props h3[data-target]').forEach(h => {
     h.onclick = () => {
       const target = h.getAttribute('data-target');
@@ -2416,7 +2443,7 @@ function bindPropertyControls(){
 }
 
 /* =====================================================================
-   19. COPY / PASTE
+   20. COPY / PASTE (objects)
    ===================================================================== */
 function copySelection(){
   const objs = getEditableTargets();
@@ -2479,17 +2506,17 @@ function cutSelection(){
 }
 
 /* =====================================================================
-   20. HISTORY
+   21. HISTORY
    ===================================================================== */
 const MAX_HISTORY = 80, MAX_BYTES = 4_000_000;
 function serialize(){
   try {
     return JSON.stringify({
-      v: 7,
+      v: 8,
       canvas: { w: canvas.getWidth(), h: canvas.getHeight() },
       fabric: canvas.toJSON(CUSTOM_PROPS),
     });
-  } catch(e){ return '{"v":7,"fabric":{"objects":[]}}'; }
+  } catch(e){ return '{"v":8,"fabric":{"objects":[]}}'; }
 }
 let saveTimer;
 function markDirty(){
@@ -2540,7 +2567,7 @@ function applySnapshot(j){
 }
 
 /* =====================================================================
-   21. ACTIONS
+   22. ACTIONS
    ===================================================================== */
 function deleteSel(){
   const objs = getEditableTargets();
@@ -2599,7 +2626,7 @@ function clearAll(){
 }
 
 /* =====================================================================
-   22. IMAGE
+   23. IMAGE — Open, Paste (Ctrl+V), Drag-drop
    ===================================================================== */
 const MAX_IMAGE_DIM = 4096;
 function downscaleIfNeeded(dataUrl){
@@ -2639,10 +2666,12 @@ async function loadImage(dataUrl, name){
       canvas.setHeight(img.height * s);
       canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
       fitView();
-      toast(`Loaded ${name || 'image'}`);
+      hidePasteHintIfEmpty();
+      toast(`Loaded ${name || 'image'}`, 'ok');
     });
   } catch(e){ toast('Load failed: ' + e.message, 'err'); }
 }
+
 $('tb-open').onclick = () => {
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*';
@@ -2655,25 +2684,68 @@ $('tb-open').onclick = () => {
   };
   inp.click();
 };
-$('tb-paste').onclick = () => { document.body.focus(); toast('Press Ctrl+V'); };
-$('tb-copy').onclick = copySelection;
-$('tb-paste-obj').onclick = pasteClipboard;
-$('tb-cut').onclick = cutSelection;
 
-document.addEventListener('paste', e => {
-  const now = Date.now();
-  const items = (e.clipboardData || {}).items || [];
-  for (const it of items){
-    if (it.kind === 'file' && it.type.startsWith('image/')){
-      if (now - pasteLock < 500) return;
-      pasteLock = now;
-      const r = new FileReader();
-      r.onload = ev => loadImage(ev.target.result, 'pasted');
-      r.readAsDataURL(it.getAsFile());
-      e.preventDefault(); return;
+$('tb-paste').onclick = () => {
+  document.body.focus();
+  toast('Press Ctrl+V to paste from clipboard', 'warn');
+};
+
+/* ★ THE FIX: robust clipboard paste for images */
+document.addEventListener('paste', async e => {
+  const items = (e.clipboardData || e.clipboardData === undefined) ? e.clipboardData?.items : null;
+
+  // 1. Prefer raw image bitmap if available
+  if (items){
+    for (let i = 0; i < items.length; i++){
+      const it = items[i];
+      if (it.kind === 'file' && it.type.startsWith('image/')){
+        e.preventDefault();
+        const blob = it.getAsFile();
+        const reader = new FileReader();
+        reader.onload = ev => loadImage(ev.target.result, 'screenshot');
+        reader.readAsDataURL(blob);
+        toast('Pasting image…', 'ok');
+        return;
+      }
     }
   }
+
+  // 2. Fallback: DataTransfer.files (Firefox/Chrome some cases)
+  if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length){
+    const f = e.clipboardData.files[0];
+    if (f.type.startsWith('image/')){
+      e.preventDefault();
+      const reader = new FileReader();
+      reader.onload = ev => loadImage(ev.target.result, f.name || 'paste');
+      reader.readAsDataURL(f);
+      toast('Pasting image…', 'ok');
+      return;
+    }
+  }
+
+  // 3. Fallback for Safari/screenshot tools: use navigator.clipboard.read()
+  try {
+    if (navigator.clipboard && navigator.clipboard.read){
+      const items2 = await navigator.clipboard.read();
+      for (const item of items2){
+        const type = item.types.find(t => t.startsWith('image/'));
+        if (type){
+          e.preventDefault();
+          const blob = await item.getType(type);
+          const reader = new FileReader();
+          reader.onload = ev => loadImage(ev.target.result, 'clipboard');
+          reader.readAsDataURL(blob);
+          toast('Pasting image…', 'ok');
+          return;
+        }
+      }
+    }
+  } catch(err){
+    // Permission may not be granted — silently ignore
+  }
 });
+
+/* Drag & drop image onto canvas */
 document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => {
   e.preventDefault();
@@ -2685,7 +2757,7 @@ document.addEventListener('drop', e => {
 });
 
 /* =====================================================================
-   23. VIEW
+   24. VIEW
    ===================================================================== */
 function applyView(){
   $('canvas-holder').style.transform =
@@ -2734,7 +2806,7 @@ window.addEventListener('mousemove', e => {
 });
 
 /* =====================================================================
-   24. PANELS
+   25. PANELS
    ===================================================================== */
 function refreshPanels(){ updateHud(); updateStorageInfo(); }
 function updateHud(){
@@ -2754,7 +2826,7 @@ function updateStorageInfo(){
 }
 
 /* =====================================================================
-   25. EXPORT
+   26. EXPORT
    ===================================================================== */
 function download(blob, name){
   const a = document.createElement('a');
@@ -2785,7 +2857,7 @@ function exportPNG(scale){
 function exportJSON(){
   try {
     const data = {
-      version: 7, kind: 'telecom_site_layout',
+      version: 8, kind: 'telecom_site_layout',
       exported: new Date().toISOString(),
       canvas: { width: canvas.getWidth(), height: canvas.getHeight() },
       scale: { m_per_px: parseFloat($('scale-m').value || 0.05),
@@ -2831,6 +2903,7 @@ function loadJSONDialog(){
           canvas.renderAll();
           refreshPanels(); refreshLegend(); refreshLayers();
           syncSelectionPanel();
+          hidePasteHintIfEmpty();
           toast('Layout loaded', 'ok');
         });
       } catch(err){ toast('Load failed: ' + err.message, 'err'); }
@@ -2856,7 +2929,7 @@ function printPlan(){
 }
 
 /* =====================================================================
-   26. SAVE / RESTORE
+   27. SAVE / RESTORE
    ===================================================================== */
 function saveLocal(){
   if (!Storage.available()) return;
@@ -2882,15 +2955,16 @@ function loadLocal(){
       canvas.renderAll();
       refreshPanels(); refreshLegend(); refreshLayers();
       syncSelectionPanel();
+      hidePasteHintIfEmpty();
       const n = canvas.getObjects().filter(o => !o.isBackground).length;
-      toast(`Restored session (${n} object${n===1?'':'s'})`, 'ok');
+      if (n) toast(`Restored session (${n} object${n===1?'':'s'})`, 'ok');
     });
     return true;
   } catch(e){ toast('Restore failed', 'err'); return false; }
 }
 
 /* =====================================================================
-   27. KEYBOARD
+   28. KEYBOARD
    ===================================================================== */
 document.addEventListener('keydown', e => {
   const editing = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
@@ -2904,11 +2978,12 @@ document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (e.ctrlKey || e.metaKey){
     if (k === 'c'){ e.preventDefault(); copySelection(); }
-    else if (k === 'v'){ e.preventDefault(); pasteClipboard(); }
+    else if (k === 'v'){ /* let the paste listener handle it (image or object) */ }
     else if (k === 'x'){ e.preventDefault(); cutSelection(); }
     else if (k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); }
     else if (k === 'y'){ e.preventDefault(); redo(); }
     else if (k === 'd'){ e.preventDefault(); duplicateSel(); }
+    else if (k === 'g'){ e.preventDefault(); ungroupSelected(); }
     else if (k === 's'){ e.preventDefault(); exportJSON(); }
     else if (k === 'o'){ e.preventDefault(); loadJSONDialog(); }
     else if (k === 'a'){
@@ -2953,7 +3028,7 @@ window.addEventListener('blur', () => {
 });
 
 /* =====================================================================
-   28. DIAGNOSTICS
+   29. DIAGNOSTICS
    ===================================================================== */
 function runDiagnostics(){
   const lines = [
@@ -2979,7 +3054,7 @@ function runDiagnostics(){
 }
 
 /* =====================================================================
-   29. TOOLBAR BINDINGS
+   30. TOOLBAR BINDINGS
    ===================================================================== */
 $('tb-new').onclick = () => {
   if (!confirm('New site plan? Unsaved work will be lost.')) return;
@@ -2991,6 +3066,7 @@ $('tb-new').onclick = () => {
   fitView();
   refreshPanels(); refreshLegend(); refreshLayers();
   syncSelectionPanel();
+  hidePasteHintIfEmpty();
   toast('New plan started', 'ok');
 };
 $('tb-load-json').onclick = loadJSONDialog;
@@ -3002,6 +3078,9 @@ $('tb-zoom-in').onclick = () => zoomBy(1.2);
 $('tb-zoom-out').onclick = () => zoomBy(1/1.2);
 $('tb-export-png').onclick = () => exportPNG(2);
 $('tb-print').onclick = printPlan;
+$('tb-copy').onclick = copySelection;
+$('tb-paste-obj').onclick = pasteClipboard;
+$('tb-cut').onclick = cutSelection;
 $('ct-zoom-fit').onclick = fitView;
 $('ct-zoom-in').onclick = () => zoomBy(1.2);
 $('ct-zoom-out').onclick = () => zoomBy(1/1.2);
@@ -3047,7 +3126,7 @@ function buildPalette(){
 }
 
 /* =====================================================================
-   30. BOOT
+   31. BOOT
    ===================================================================== */
 (async function boot(){
   try {
@@ -3067,7 +3146,8 @@ function buildPalette(){
       Boot.ready();
       refreshLayers(); refreshLegend();
       syncSelectionPanel();
-      toast('Ready — pick a stencil or tool', 'ok');
+      hidePasteHintIfEmpty();
+      toast('Ready — Ctrl+V to paste an image, or click 📦 stencils', 'ok');
     }, 200);
   } catch(e){
     console.error('[boot]', e);
