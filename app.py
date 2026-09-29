@@ -29,7 +29,6 @@ APP_HTML = r"""<!DOCTYPE html>
   html,body{margin:0;height:100%;overflow:hidden;
     font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
     background:#0b1220;color:#e2e8f0;font-size:12.5px}
-
   #boot{position:fixed;inset:0;z-index:9999;background:#0b1220;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     color:#8b9dc3;transition:opacity .3s}
@@ -95,7 +94,6 @@ APP_HTML = r"""<!DOCTYPE html>
     display:flex;flex-direction:column;align-items:center;gap:4px}
   .stencil:hover{background:#1c2640;border-color:#3b82f6;
     transform:translateY(-1px);box-shadow:0 4px 10px rgba(0,0,0,.3)}
-  .stencil svg{width:44px;height:44px}
 
   #props{width:280px;background:#0f1626;border-left:1px solid #1f2a44;
     padding:60px 12px 20px;overflow-y:auto;flex-shrink:0;z-index:15}
@@ -118,11 +116,12 @@ APP_HTML = r"""<!DOCTYPE html>
   input[type="color"]{width:100%;height:28px;border:none;background:transparent;
     cursor:pointer;border-radius:6px}
   input[type="range"]{width:100%;accent-color:#6366f1}
-  input[type="text"],input[type="number"],select{width:100%;padding:5px 8px;
+  input[type="text"],input[type="number"],select,textarea{width:100%;padding:5px 8px;
     border-radius:6px;border:1px solid #2a3a5c;background:#0b1220;
     color:#e2e8f0;font-size:.76rem;font-family:inherit}
-  input:focus,select:focus{outline:none;border-color:#6366f1;
+  input:focus,select:focus,textarea:focus{outline:none;border-color:#6366f1;
     box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+  textarea{resize:vertical;min-height:52px}
   label{font-size:.68rem;color:#8b9dc3;display:flex;
     justify-content:space-between;align-items:center;margin:5px 0 2px}
   label span.val{color:#a5b4fc;font-weight:600}
@@ -174,6 +173,12 @@ APP_HTML = r"""<!DOCTYPE html>
     padding:4px 8px;border-radius:6px;font-size:.72rem;color:#c7d2fe;
     font-family:ui-monospace,monospace;pointer-events:none;z-index:200;
     display:none}
+
+  /* Selection-aware visibility */
+  .sel-only{display:none}
+  .sel-only.on{display:block}
+  .empty-note{color:#7c8db5;font-size:.72rem;line-height:1.5;
+    padding:8px;background:#0b1220;border-radius:6px;border:1px dashed #2a3a5c}
 </style>
 </head>
 <body>
@@ -303,15 +308,23 @@ APP_HTML = r"""<!DOCTYPE html>
     <h4>🌱 Site Surface</h4>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="grass"><span>🌱</span>Grass Area</div>
-      <div class="stencil" data-stencil="cement"><span>⬜</span>Cement Floor</div>
+      <div class="stencil" data-stencil="cement"><span>⬜</span>Cement Slab</div>
       <div class="stencil" data-stencil="gravel"><span>🪨</span>Gravel Pad</div>
       <div class="stencil" data-stencil="wall"><span>🧱</span>Wall</div>
+    </div>
+
+    <h4>🔤 Labels</h4>
+    <div class="stencil-grid">
+      <div class="stencil" data-stencil="label_equipment"><span>🏷️</span>Equip Label</div>
+      <div class="stencil" data-stencil="label_cable"><span>🆔</span>Cable Label</div>
+      <div class="stencil" data-stencil="label_zone"><span>📛</span>Zone Label</div>
+      <div class="stencil" data-stencil="label_note"><span>📝</span>Note</div>
     </div>
   </div>
 
   <aside id="props">
-    <h3>🎨 Style</h3>
-    <div class="psection">
+    <h3>🎨 Draw Style</h3>
+    <div class="psection" id="draw-style">
       <label>Palette</label>
       <div class="swatches" id="palette"></div>
       <label>Stroke color</label>
@@ -325,11 +338,103 @@ APP_HTML = r"""<!DOCTYPE html>
       <input type="range" id="fill-opacity" min="0" max="100" value="40">
     </div>
 
-    <h3>🔤 Text</h3>
-    <div class="psection">
-      <input type="text" id="text-value" value="SITE" maxlength="80">
+    <h3>🔤 Text Tool</h3>
+    <div class="psection" id="text-tool">
+      <input type="text" id="text-value" value="LABEL" maxlength="80">
       <label>Font size <span class="val" id="fs-val">16px</span></label>
       <input type="range" id="font-size" min="8" max="72" value="16">
+    </div>
+
+    <!-- ★ LIVE SELECTION PROPERTIES -->
+    <h3>⚙️ Selected Object</h3>
+    <div class="psection" id="sel-empty">
+      <div class="empty-note">
+        Nothing selected. Click an object on the canvas to edit it here.
+      </div>
+    </div>
+
+    <div class="psection sel-only" id="sel-props">
+      <div style="display:flex;justify-content:space-between;align-items:center;
+        margin-bottom:6px;font-size:.72rem;color:#a5b4fc">
+        <span id="sel-type">Object</span>
+        <span id="sel-uid" style="font-family:ui-monospace,monospace;
+          color:#66748f;font-size:.65rem"></span>
+      </div>
+
+      <!-- Common: stroke color -->
+      <div class="sel-only" id="row-stroke">
+        <label>Stroke color</label>
+        <input type="color" id="sel-stroke-color">
+      </div>
+      <!-- Common: stroke width -->
+      <div class="sel-only" id="row-strokew">
+        <label>Stroke width <span class="val" id="sel-sw-val">2px</span></label>
+        <input type="range" id="sel-stroke-width" min="0" max="20" value="2">
+      </div>
+      <!-- Fill -->
+      <div class="sel-only" id="row-fill">
+        <label><span>Fill enabled</span>
+          <input type="checkbox" id="sel-fill-enabled" style="width:auto"></label>
+        <input type="color" id="sel-fill-color">
+        <label>Fill opacity <span class="val" id="sel-fillop-val">40%</span></label>
+        <input type="range" id="sel-fill-opacity" min="0" max="100" value="40">
+      </div>
+      <!-- Text: content -->
+      <div class="sel-only" id="row-text">
+        <label>Text content</label>
+        <textarea id="sel-text" rows="2"></textarea>
+      </div>
+      <!-- Text: font size -->
+      <div class="sel-only" id="row-fontsize">
+        <label>Font size <span class="val" id="sel-fs-val">16px</span></label>
+        <input type="range" id="sel-font-size" min="6" max="120" value="16">
+      </div>
+      <!-- Text: font weight + style -->
+      <div class="sel-only" id="row-fontstyle">
+        <label><span>Bold</span>
+          <input type="checkbox" id="sel-bold" style="width:auto"></label>
+        <label><span>Italic</span>
+          <input type="checkbox" id="sel-italic" style="width:auto"></label>
+      </div>
+      <!-- Opacity -->
+      <div class="sel-only" id="row-opacity">
+        <label>Opacity <span class="val" id="sel-op-val">100%</span></label>
+        <input type="range" id="sel-opacity" min="5" max="100" value="100">
+      </div>
+      <!-- Angle -->
+      <div class="sel-only" id="row-angle">
+        <label>Rotation <span class="val" id="sel-angle-val">0°</span></label>
+        <input type="range" id="sel-angle" min="-180" max="180" value="0">
+      </div>
+      <!-- Position + Size -->
+      <div class="sel-only" id="row-geom">
+        <label>Position & Size</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+          <input type="number" id="sel-x" placeholder="X" step="1">
+          <input type="number" id="sel-y" placeholder="Y" step="1">
+          <input type="number" id="sel-w" placeholder="W" step="1">
+          <input type="number" id="sel-h" placeholder="H" step="1">
+        </div>
+        <div class="prow" style="margin-top:5px">
+          <button class="pbtn" id="sel-lock-ratio" title="Lock ratio">
+            🔒 <span>Ratio</span>
+          </button>
+          <button class="pbtn" id="sel-reset-size" title="Reset to original">
+            ↺ <span>Reset</span>
+          </button>
+        </div>
+      </div>
+      <!-- Layer order + actions -->
+      <div class="sel-only" id="row-actions">
+        <div class="prow" style="margin-top:6px">
+          <button class="pbtn" id="sel-front">⬆ <span>Front</span></button>
+          <button class="pbtn" id="sel-back">⬇ <span>Back</span></button>
+        </div>
+        <div class="prow">
+          <button class="pbtn" id="sel-dup">📋 <span>Copy</span></button>
+          <button class="pbtn" id="sel-del">🗑️ <span>Delete</span></button>
+        </div>
+      </div>
     </div>
 
     <h3>🧲 Snap</h3>
@@ -356,19 +461,6 @@ APP_HTML = r"""<!DOCTYPE html>
         <input type="checkbox" id="show-length" style="width:auto" checked></label>
     </div>
 
-    <h3>🔧 Selection Actions</h3>
-    <div class="psection">
-      <div class="prow">
-        <button class="pbtn" id="btn-dup">📋 <span>Copy</span></button>
-        <button class="pbtn" id="btn-del">🗑️ <span>Delete</span></button>
-      </div>
-      <div class="prow">
-        <button class="pbtn" id="btn-rot90">↻ <span>Rot 90</span></button>
-        <button class="pbtn" id="btn-flip">⇋ <span>Flip</span></button>
-      </div>
-      <button class="pbtn" id="btn-clear">💥 <span>Clear drawings</span></button>
-    </div>
-
     <h3>🛡️ Session</h3>
     <div class="psection">
       <div class="prow">
@@ -386,9 +478,9 @@ APP_HTML = r"""<!DOCTYPE html>
       <div><b style="color:#a5b4fc">Zoom:</b> Ctrl + scroll</div>
       <div><b style="color:#a5b4fc">Pan:</b> Space + drag or H</div>
       <div><b style="color:#a5b4fc">Fit:</b> F</div>
-      <div><b style="color:#a5b4fc">Ortho:</b> Shift while drawing</div>
       <div><b style="color:#a5b4fc">Duplicate:</b> Alt + drag</div>
       <div><b style="color:#a5b4fc">Finish polyline:</b> Enter</div>
+      <div><b style="color:#a5b4fc">Edit label text:</b> double-click it</div>
       <div><b style="color:#a5b4fc">Diag:</b> Ctrl+Shift+D</div>
     </div>
   </aside>
@@ -482,8 +574,8 @@ function loadFabric(i = 0){
    2. STORAGE
    ===================================================================== */
 const Storage = {
-  KEY: 'telecom_site_v2',
-  KEY_CTR: 'telecom_site_ctr_v2',
+  KEY: 'telecom_site_v3',
+  KEY_CTR: 'telecom_site_ctr_v3',
   available(){
     try { const k='__t'+Math.random(); localStorage.setItem(k,'1');
           localStorage.removeItem(k); return true; } catch(_){ return false; }
@@ -508,6 +600,7 @@ const Storage = {
 let canvas;
 let currentTool = 'select';
 let pendingStencil = null;
+let pendingLabelId = null;      // for custom label stencil
 let drawing = false, startPt = null, activeShape = null, drawMoved = false;
 let polyPoints = [], polyPreview = null;
 let undoStack = [], redoStack = [];
@@ -519,15 +612,24 @@ let shiftAxis = null;
 let ortho = false;
 let showDims = true;
 let fileName = 'Untitled Site Plan';
+let uidCounter = 1;
+let lockRatio = false;
 const CW = 1600, CH = 1000;
-const M2PX = 20;             // 1 m = 20 px default drawing scale
+const M2PX = 20;
 
 const PALETTE = ['#334155','#64748b','#94a3b8','#cbd5e1','#f8fafc','#000000',
                  '#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2','#2563eb',
                  '#7c3aed','#db2777','#a16207','#0f766e','#475569','#a3a3a3'];
 
+/* ★ FABRIC custom props so they survive serialization */
+const CUSTOM_PROPS = ['selectable','evented','isBackground',
+                      '_isCable','_isAnnotation','_isDimension',
+                      '_stencilLabel','_isStencilLabel','_labelKind',
+                      '_uid','_originalWidth','_originalHeight',
+                      '_boundTo'];
+
 /* =====================================================================
-   4. FABRIC PROTOTYPE — tight selection boxes (Option A)
+   4. FABRIC PROTOTYPE — tight selection boxes
    ===================================================================== */
 function tightenSelectionBoxes(){
   fabric.Object.prototype.set({
@@ -545,12 +647,9 @@ function tightenSelectionBoxes(){
 }
 
 /* =====================================================================
-   5. ★ TOP-VIEW ENGINEERING SYMBOLS
-   Every stencil is drawn from the TOP (plan view) the way it appears
-   on a real telecom site drawing. All dimensions in metres → px.
+   5. SYMBOL PRIMITIVES + HELPERS
    ===================================================================== */
-
-/* ---- Drawing primitives ---- */
+function uid(){ return 'o' + (uidCounter++); }
 function mkLine(x1,y1,x2,y2, opt){
   return new fabric.Line([x1,y1,x2,y2], Object.assign({
     stroke:'#0f172a', strokeWidth:1.5, selectable:true, evented:true,
@@ -581,26 +680,22 @@ function mkText(s,x,y,size, opt){
 function mkGroup(objs, label){
   const g = new fabric.Group(objs, { selectable:true, evented:true });
   if (label) g._stencilLabel = label;
+  g._uid = uid();
   return g;
 }
-
-/* Hatch fill for concrete (diagonal 45° lines) */
 function hatchRect(x,y,w,h, opt){
   opt = opt || {};
   const spacing = opt.spacing || 8;
   const color = opt.hatch || '#94a3b8';
   const g = [];
-  // background
   g.push(mkRect(x,y,w,h, Object.assign({
     fill: opt.fill || 'rgba(226,232,240,0.6)',
     stroke: opt.stroke || '#0f172a', strokeWidth: opt.strokeWidth || 1.5,
   }, opt.extra || {})));
-  // diagonal hatch lines clipped to rect
   const diag = w + h;
   for (let i = -h; i < diag; i += spacing){
     const x1 = x + i, y1 = y;
     const x2 = x + i + h, y2 = y + h;
-    // simple clip: only draw segment where it intersects rect
     const sx = Math.max(x, Math.min(x1, x+w));
     const ex = Math.max(x, Math.min(x2, x+w));
     if (sx === ex) continue;
@@ -615,520 +710,447 @@ function hatchRect(x,y,w,h, opt){
   return g;
 }
 
+/* ★ DETACHED LABEL — created as a separate object next to the group */
+function makeDetachedLabel(text, x, y, opt){
+  opt = opt || {};
+  const lbl = new fabric.IText(text, {
+    left: x, top: y,
+    fontSize: opt.fontSize || 10,
+    fill: opt.fill || '#0f172a',
+    fontFamily: 'system-ui, sans-serif',
+    fontWeight: opt.fontWeight || '700',
+    backgroundColor: opt.bg || 'rgba(255,255,255,0.85)',
+    padding: 3,
+    selectable: true, evented: true,
+  });
+  lbl._isStencilLabel = true;
+  lbl._labelKind = opt.kind || 'equipment';
+  lbl._uid = uid();
+  lbl._boundTo = opt.boundTo || null;
+  return lbl;
+}
+
+/* =====================================================================
+   6. ★ STENCIL LIBRARY (labels are detached, not grouped)
+   ===================================================================== */
 const STENCILS = {
 
-  /* ==================== GATE & FENCE ==================== */
+  /* ---------- GATE & FENCE ---------- */
   gate_2door(){
     const W = 4*M2PX, H = 4;
-    const g = [];
-    // piers at each end
-    g.push(mkRect(0, 0, H, H, { fill:'#64748b', stroke:'#0f172a', strokeWidth:1.5 }));
-    g.push(mkRect(W-H, 0, H, H, { fill:'#64748b', stroke:'#0f172a', strokeWidth:1.5 }));
-    // rails (top view — thin lines)
-    g.push(mkLine(H, H/2, W-H, H/2, { stroke:'#0f172a', strokeWidth:2 }));
-    // left door leaf (open) — arc
-    const leafL = new fabric.Path(`M ${H} ${H/2} L ${H} ${H/2 - W*0.45}`,
-      { stroke:'#0f172a', strokeWidth:1, fill:'', selectable:false, evented:false });
-    g.push(leafL);
-    const arcL = new fabric.Path(
+    const parts = [];
+    parts.push(mkRect(0, 0, H, H, { fill:'#64748b', stroke:'#0f172a' }));
+    parts.push(mkRect(W-H, 0, H, H, { fill:'#64748b', stroke:'#0f172a' }));
+    parts.push(mkLine(H, H/2, W-H, H/2, { stroke:'#0f172a', strokeWidth:2 }));
+    parts.push(new fabric.Path(`M ${H} ${H/2} L ${H} ${H/2 - W*0.45}`,
+      { stroke:'#0f172a', strokeWidth:1, fill:'', selectable:false }));
+    parts.push(new fabric.Path(
       `M ${H} ${H/2 - W*0.45} A ${W*0.45} ${W*0.45} 0 0 1 ${H + W*0.45} ${H/2}`,
-      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[3,2],
-        selectable:false, evented:false });
-    g.push(arcL);
-    // right door leaf
-    const leafR = new fabric.Path(`M ${W-H} ${H/2} L ${W-H} ${H/2 - W*0.45}`,
-      { stroke:'#0f172a', strokeWidth:1, fill:'', selectable:false, evented:false });
-    g.push(leafR);
-    const arcR = new fabric.Path(
+      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[3,2], selectable:false }));
+    parts.push(new fabric.Path(`M ${W-H} ${H/2} L ${W-H} ${H/2 - W*0.45}`,
+      { stroke:'#0f172a', strokeWidth:1, fill:'', selectable:false }));
+    parts.push(new fabric.Path(
       `M ${W-H} ${H/2 - W*0.45} A ${W*0.45} ${W*0.45} 0 0 0 ${W-H - W*0.45} ${H/2}`,
-      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[3,2],
-        selectable:false, evented:false });
-    g.push(arcR);
-    // label + dim
-    g.push(mkText('GATE 2-DOOR', W/2 - 34, -16, 9, { fill:'#7c2d12' }));
-    g.push(mkText(`${(W/M2PX).toFixed(1)}m`, W/2 - 10, H + 4, 8, { fill:'#0891b2' }));
-    return mkGroup(g, 'Gate');
+      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[3,2], selectable:false }));
+    const grp = mkGroup(parts, 'Gate');
+    return { group: grp, labels: [
+      { text:'GATE 2-DOOR', x: W/2, y: -18, kind:'equipment' }
+    ]};
   },
   fence(){
     const W = 5*M2PX, H = 3;
-    const g = [
+    const parts = [
       mkLine(0, H/2, W, H/2, { stroke:'#0f172a', strokeWidth:1.5 }),
       mkLine(0, 0, 0, H, { stroke:'#64748b', strokeWidth:3 }),
       mkLine(W, 0, W, H, { stroke:'#64748b', strokeWidth:3 }),
     ];
-    // tick marks
     for (let x = 0; x <= W; x += 10){
-      g.push(mkLine(x, H/2 - 2, x, H/2 + 2, { stroke:'#0f172a', strokeWidth:0.8 }));
+      parts.push(mkLine(x, H/2 - 2, x, H/2 + 2, { stroke:'#0f172a', strokeWidth:0.8 }));
     }
-    return mkGroup(g, 'Fence');
+    return { group: mkGroup(parts, 'Fence'), labels: [] };
   },
 
-  /* ==================== CABIN / SHELTER ==================== */
+  /* ---------- CABIN / SHELTER ---------- */
   cabin(){
-    // Outdoor telecom shelter — top view with hatched roof outline, door, vents
     const W = 4*M2PX, H = 3*M2PX;
-    const g = [];
-    // outer wall
-    g.push(mkRect(0, 0, W, H, { fill:'#f1f5f9', stroke:'#0f172a', strokeWidth:2 }));
-    // wall thickness (inner outline)
-    g.push(mkRect(5, 5, W-10, H-10, { fill:'transparent', stroke:'#475569',
+    const parts = [];
+    parts.push(mkRect(0, 0, W, H, { fill:'#f1f5f9', stroke:'#0f172a', strokeWidth:2 }));
+    parts.push(mkRect(5, 5, W-10, H-10, { fill:'transparent', stroke:'#475569',
       strokeWidth:1, strokeDashArray:[4,2] }));
-    // door swing
     const dw = 22, dx = W - dw - 4, dy = H/2 - 11;
-    g.push(mkRect(dx, dy, dw, 22, { fill:'#94a3b8', stroke:'#0f172a' }));
-    g.push(new fabric.Path(`M ${dx} ${dy} A 22 22 0 0 0 ${dx + 22} ${dy}`,
-      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[2,2],
-        selectable:false, evented:false }));
-    // AC unit on side
-    g.push(mkRect(6, 6, 24, 12, { fill:'#dbeafe', stroke:'#1e3a8a', strokeWidth:1 }));
-    g.push(mkText('AC', 14, 9, 7, { fill:'#1e3a8a' }));
-    // Cable entry
-    g.push(mkRect(W-24, H-14, 18, 8, { fill:'#fef3c7', stroke:'#a16207', strokeWidth:1 }));
-    g.push(mkText('ENTRY', W-24, H-6, 6, { fill:'#7c2d12' }));
-    // Title
-    g.push(mkText('SHELTER', W/2-26, H/2 - 5, 11, { fontWeight:'700' }));
-    g.push(mkText(`${(W/M2PX).toFixed(1)} × ${(H/M2PX).toFixed(1)}m`,
-      W/2 - 24, -14, 8, { fill:'#0891b2' }));
-    return mkGroup(g, 'Shelter');
+    parts.push(mkRect(dx, dy, dw, 22, { fill:'#94a3b8', stroke:'#0f172a' }));
+    parts.push(new fabric.Path(`M ${dx} ${dy} A 22 22 0 0 0 ${dx + 22} ${dy}`,
+      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[2,2], selectable:false }));
+    parts.push(mkRect(6, 6, 24, 12, { fill:'#dbeafe', stroke:'#1e3a8a' }));
+    parts.push(mkText('AC', 14, 9, 7, { fill:'#1e3a8a', selectable:false }));
+    parts.push(mkRect(W-24, H-14, 18, 8, { fill:'#fef3c7', stroke:'#a16207' }));
+    parts.push(mkText('ENTRY', W-24, H-6, 6, { fill:'#7c2d12', selectable:false }));
+    const grp = mkGroup(parts, 'Shelter');
+    return { group: grp, labels: [
+      { text:'SHELTER', x: 0, y: -18, kind:'equipment' },
+      { text:`${(W/M2PX).toFixed(1)}×${(H/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
+    ]};
   },
   stairs(){
-    // Top view: parallel treads with direction arrow
     const steps = 8, tw = 30, th = 8;
-    const g = [];
+    const parts = [];
     for (let i = 0; i < steps; i++){
-      g.push(mkRect(0, i*th, tw, th, { fill:'#cbd5e1', stroke:'#334155', strokeWidth:1 }));
+      parts.push(mkRect(0, i*th, tw, th, { fill:'#cbd5e1', stroke:'#334155' }));
     }
-    // Direction arrow
-    g.push(mkLine(tw/2, steps*th - 4, tw/2, 4,
-      { stroke:'#0891b2', strokeWidth:1.2 }));
-    g.push(new fabric.Triangle({ left: tw/2 - 3, top: 0, width: 6, height: 8,
-      fill:'#0891b2', angle: 0, selectable:false, evented:false }));
-    g.push(mkText('STAIRS', tw + 4, steps*th/2 - 5, 8, { fill:'#0891b2' }));
-    return mkGroup(g, 'Stairs');
+    parts.push(mkLine(tw/2, steps*th - 4, tw/2, 4, { stroke:'#0891b2', strokeWidth:1.2 }));
+    parts.push(new fabric.Triangle({ left: tw/2 - 3, top: 0, width: 6, height: 8,
+      fill:'#0891b2', selectable:false }));
+    return { group: mkGroup(parts, 'Stairs'), labels: [
+      { text:'STAIRS', x: tw + 6, y: steps*th/2 - 6, kind:'equipment' }
+    ]};
   },
 
-  /* ==================== CABINETS (top view) ==================== */
+  /* ---------- CABINETS ---------- */
   odc(){
-    // ODC cabinet with double doors — plan view
     const W = 1.2*M2PX, H = 2.2*M2PX;
-    const g = [
+    const parts = [
       mkRect(0, 0, W, H, { fill:'#f8fafc', stroke:'#0f172a', strokeWidth:2 }),
       mkLine(W/2, 0, W/2, H, { stroke:'#0f172a', strokeWidth:1, strokeDashArray:[3,2] }),
-      // corner bolts
       mkCircle(2, 2, 2, { fill:'#64748b', stroke:'none' }),
       mkCircle(W-4, 2, 2, { fill:'#64748b', stroke:'none' }),
       mkCircle(2, H-4, 2, { fill:'#64748b', stroke:'none' }),
       mkCircle(W-4, H-4, 2, { fill:'#64748b', stroke:'none' }),
-      mkText('ODC', W/2 - 15, H/2 - 5, 9, { fontWeight:'700' }),
     ];
-    // door swing arcs
-    g.push(new fabric.Path(`M 0 0 A ${W/2} ${W/2} 0 0 1 ${W/2} ${W/2}`,
-      { stroke:'#0891b2', strokeWidth:0.7, fill:'', strokeDashArray:[2,2],
-        selectable:false, evented:false }));
-    g.push(mkText(`${(W/M2PX).toFixed(1)}×${(H/M2PX).toFixed(1)}`,
-      4, H + 3, 7, { fill:'#0891b2' }));
-    return mkGroup(g, 'ODC');
+    const grp = mkGroup(parts, 'ODC');
+    return { group: grp, labels: [
+      { text:'ODC', x: 0, y: -16, kind:'equipment' }
+    ]};
   },
-  cab1(){
-    const W = 0.6*M2PX, H = 2.2*M2PX;
-    const g = [
-      mkRect(0, 0, W, H, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth:1.8 }),
-      mkLine(2, 2, 2, H-2, { stroke:'#475569', strokeWidth:0.8 }),
-      mkText('1B', W/2-8, H/2-4, 8, { fontWeight:'700' }),
-    ];
-    return mkGroup(g, '1-Bay');
-  },
-  cab2(){
-    const W = 1.2*M2PX, H = 2.2*M2PX;
-    const g = [
-      mkRect(0, 0, W, H, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth:1.8 }),
-      mkLine(W/2, 2, W/2, H-2, { stroke:'#475569', strokeWidth:0.8 }),
-      mkText('2B', W/2-8, H/2-4, 8, { fontWeight:'700' }),
-    ];
-    return mkGroup(g, '2-Bay');
-  },
-  cab3(){
-    const W = 1.8*M2PX, H = 2.2*M2PX;
-    const g = [
-      mkRect(0, 0, W, H, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth:1.8 }),
-      mkLine(W/3, 2, W/3, H-2, { stroke:'#475569', strokeWidth:0.8 }),
-      mkLine(2*W/3, 2, 2*W/3, H-2, { stroke:'#475569', strokeWidth:0.8 }),
-      mkText('3B', W/2-8, H/2-4, 8, { fontWeight:'700' }),
-    ];
-    return mkGroup(g, '3-Bay');
-  },
+  cab1(){ return cabGeneric(1, '1-Bay'); },
+  cab2(){ return cabGeneric(2, '2-Bay'); },
+  cab3(){ return cabGeneric(3, '3-Bay'); },
 
-  /* ==================== TOWER (top view) ==================== */
+  /* ---------- TOWER ---------- */
   tower4(){
-    // 4-leg self-supporting tower — top view showing all legs and X bracing
     const S = 4*M2PX;
-    const g = [];
-    // foundation pads under each leg
+    const parts = [];
     const pad = 14;
     [[0,0],[S,0],[0,S],[S,S]].forEach(([cx,cy]) => {
-      g.push(mkRect(cx - pad/2, cy - pad/2, pad, pad,
-        { fill:'#94a3b8', stroke:'#0f172a', strokeWidth:1 }));
+      parts.push(mkRect(cx - pad/2, cy - pad/2, pad, pad,
+        { fill:'#94a3b8', stroke:'#0f172a' }));
     });
-    // 4 legs
     [[0,0],[S,0],[0,S],[S,S]].forEach(([cx,cy]) => {
-      g.push(mkCircle(cx, cy, 5, { fill:'#1e293b', stroke:'#0f172a', strokeWidth:1 }));
+      parts.push(mkCircle(cx, cy, 5, { fill:'#1e293b', stroke:'#0f172a' }));
     });
-    // outer square (legs connected by lattice)
-    g.push(mkLine(0, 0, S, 0, { stroke:'#0f172a', strokeWidth:1.2 }));
-    g.push(mkLine(S, 0, S, S, { stroke:'#0f172a', strokeWidth:1.2 }));
-    g.push(mkLine(S, S, 0, S, { stroke:'#0f172a', strokeWidth:1.2 }));
-    g.push(mkLine(0, S, 0, 0, { stroke:'#0f172a', strokeWidth:1.2 }));
-    // X bracing on each face
-    g.push(mkLine(0, 0, S, S, { stroke:'#0f172a', strokeWidth:0.8,
-      strokeDashArray:[4,3] }));
-    g.push(mkLine(S, 0, 0, S, { stroke:'#0f172a', strokeWidth:0.8,
-      strokeDashArray:[4,3] }));
-    // interior mast
-    g.push(mkCircle(S/2, S/2, 8, { fill:'#334155', stroke:'#0f172a', strokeWidth:1.5 }));
-    // label
-    g.push(mkText('4-LEG TOWER', S/2-38, -18, 10, { fontWeight:'700' }));
-    g.push(mkText(`${(S/M2PX).toFixed(1)} × ${(S/M2PX).toFixed(1)}m`,
-      S/2-22, S + 4, 8, { fill:'#0891b2' }));
-    return mkGroup(g, '4-Leg Tower');
+    parts.push(mkLine(0, 0, S, 0, { stroke:'#0f172a', strokeWidth:1.2 }));
+    parts.push(mkLine(S, 0, S, S, { stroke:'#0f172a', strokeWidth:1.2 }));
+    parts.push(mkLine(S, S, 0, S, { stroke:'#0f172a', strokeWidth:1.2 }));
+    parts.push(mkLine(0, S, 0, 0, { stroke:'#0f172a', strokeWidth:1.2 }));
+    parts.push(mkLine(0, 0, S, S, { stroke:'#0f172a', strokeWidth:0.8, strokeDashArray:[4,3] }));
+    parts.push(mkLine(S, 0, 0, S, { stroke:'#0f172a', strokeWidth:0.8, strokeDashArray:[4,3] }));
+    parts.push(mkCircle(S/2, S/2, 8, { fill:'#334155', stroke:'#0f172a', strokeWidth:1.5 }));
+    const grp = mkGroup(parts, '4-Leg Tower');
+    return { group: grp, labels: [
+      { text:'4-LEG TOWER', x: 0, y: -22, kind:'equipment' },
+      { text:`${(S/M2PX).toFixed(1)}m × ${(S/M2PX).toFixed(1)}m`, x: 0, y: S + 6, kind:'dim' }
+    ]};
   },
   tower3(){
     const S = 3.5*M2PX;
-    const h = S * 0.866;              // triangle height
+    const h = S * 0.866;
     const A = { x:S/2, y:0 }, B = { x:0, y:h }, C = { x:S, y:h };
-    const g = [];
-    // foundation pads
+    const parts = [];
     [A,B,C].forEach(p => {
-      g.push(mkRect(p.x - 7, p.y - 7, 14, 14,
-        { fill:'#94a3b8', stroke:'#0f172a', strokeWidth:1 }));
+      parts.push(mkRect(p.x - 7, p.y - 7, 14, 14, { fill:'#94a3b8', stroke:'#0f172a' }));
     });
-    // triangle
-    g.push(mkLine(A.x, A.y, B.x, B.y, { stroke:'#0f172a', strokeWidth:1.2 }));
-    g.push(mkLine(B.x, B.y, C.x, C.y, { stroke:'#0f172a', strokeWidth:1.2 }));
-    g.push(mkLine(C.x, C.y, A.x, A.y, { stroke:'#0f172a', strokeWidth:1.2 }));
-    // legs
-    [A,B,C].forEach(p => g.push(mkCircle(p.x, p.y, 5,
-      { fill:'#1e293b', stroke:'#0f172a' })));
-    // X bracing
-    g.push(mkLine(A.x, A.y, (B.x+C.x)/2, (B.y+C.y)/2,
+    parts.push(mkLine(A.x, A.y, B.x, B.y, { stroke:'#0f172a', strokeWidth:1.2 }));
+    parts.push(mkLine(B.x, B.y, C.x, C.y, { stroke:'#0f172a', strokeWidth:1.2 }));
+    parts.push(mkLine(C.x, C.y, A.x, A.y, { stroke:'#0f172a', strokeWidth:1.2 }));
+    [A,B,C].forEach(p => parts.push(mkCircle(p.x, p.y, 5, { fill:'#1e293b', stroke:'#0f172a' })));
+    parts.push(mkLine(A.x, A.y, (B.x+C.x)/2, (B.y+C.y)/2,
       { stroke:'#0f172a', strokeWidth:0.8, strokeDashArray:[4,3] }));
-    g.push(mkLine(B.x, B.y, (A.x+C.x)/2, (A.y+C.y)/2,
+    parts.push(mkLine(B.x, B.y, (A.x+C.x)/2, (A.y+C.y)/2,
       { stroke:'#0f172a', strokeWidth:0.8, strokeDashArray:[4,3] }));
-    g.push(mkLine(C.x, C.y, (A.x+B.x)/2, (A.y+B.y)/2,
+    parts.push(mkLine(C.x, C.y, (A.x+B.x)/2, (A.y+B.y)/2,
       { stroke:'#0f172a', strokeWidth:0.8, strokeDashArray:[4,3] }));
-    // centre
-    g.push(mkCircle(S/2, h/2 + 4, 7,
-      { fill:'#334155', stroke:'#0f172a' }));
-    g.push(mkText('3-LEG TOWER', S/2-38, -18, 10, { fontWeight:'700' }));
-    return mkGroup(g, '3-Leg Tower');
+    parts.push(mkCircle(S/2, h/2 + 4, 7, { fill:'#334155', stroke:'#0f172a' }));
+    const grp = mkGroup(parts, '3-Leg Tower');
+    return { group: grp, labels: [
+      { text:'3-LEG TOWER', x: 0, y: -22, kind:'equipment' }
+    ]};
   },
   towerfoot(){
-    // Concrete footing with anchor bolt pattern (plan view)
     const S = 1.2*M2PX;
-    const g = [];
-    g.push(...hatchRect(0, 0, S, S, { spacing:6, hatch:'#64748b' }));
-    // anchor bolt circle pattern
+    const parts = [];
+    parts.push(...hatchRect(0, 0, S, S, { spacing:6, hatch:'#64748b' }));
     const cx = S/2, cy = S/2, r = S*0.32;
-    g.push(mkCircle(cx, cy, r, { fill:'transparent', stroke:'#0f172a',
+    parts.push(mkCircle(cx, cy, r, { fill:'transparent', stroke:'#0f172a',
       strokeWidth:0.8, strokeDashArray:[2,2] }));
     for (let i = 0; i < 8; i++){
       const a = (i / 8) * Math.PI * 2;
-      g.push(mkCircle(cx + Math.cos(a)*r, cy + Math.sin(a)*r, 2,
+      parts.push(mkCircle(cx + Math.cos(a)*r, cy + Math.sin(a)*r, 2,
         { fill:'#1e293b', stroke:'none' }));
     }
-    g.push(mkText('FOOTING', cx - 22, cy - 4, 8, { fontWeight:'700' }));
-    return mkGroup(g, 'Footing');
+    return { group: mkGroup(parts, 'Footing'), labels: [
+      { text:'FOOTING', x: 0, y: -16, kind:'equipment' }
+    ]};
   },
   guy(){
     const S = 1*M2PX;
-    const g = [
-      // Guy anchor block (concrete)
+    const parts = [
       mkRect(0, 0, S, S, { fill:'#a8a29e', stroke:'#44403c', strokeWidth:1.5 }),
       mkCircle(S/2, S/2, S*0.25, { fill:'#fef3c7', stroke:'#a16207', strokeWidth:1 }),
       mkCircle(S/2, S/2, 2, { fill:'#1e293b' }),
-      mkText('GUY', S/2 - 12, S + 3, 8, { fontWeight:'700' }),
     ];
-    return mkGroup(g, 'Guy Anchor');
+    return { group: mkGroup(parts, 'Guy Anchor'), labels: [
+      { text:'GUY', x: 0, y: S + 4, kind:'equipment' }
+    ]};
   },
 
-  /* ==================== POWER ==================== */
+  /* ---------- POWER ---------- */
   genset(){
-    // Generator: concrete pad + enclosure with radiator, exhaust, control panel
     const padW = 4*M2PX, padH = 2.4*M2PX;
     const genW = 3.4*M2PX, genH = 1.6*M2PX;
     const gx = (padW - genW)/2, gy = (padH - genH)/2;
-    const g = [];
-    // concrete pad — hatched
-    g.push(...hatchRect(0, 0, padW, padH, { spacing:8, hatch:'#94a3b8' }));
-    // enclosure
-    g.push(mkRect(gx, gy, genW, genH,
+    const parts = [];
+    parts.push(...hatchRect(0, 0, padW, padH, { spacing:8, hatch:'#94a3b8' }));
+    parts.push(mkRect(gx, gy, genW, genH,
       { fill:'#fef3c7', stroke:'#78350f', strokeWidth:2 }));
-    // radiator (right end)
-    g.push(mkRect(gx + genW - 20, gy + 4, 16, genH - 8,
+    parts.push(mkRect(gx + genW - 20, gy + 4, 16, genH - 8,
       { fill:'#fdba74', stroke:'#7c2d12', strokeWidth:1 }));
     for (let y = gy + 6; y < gy + genH - 6; y += 4){
-      g.push(mkLine(gx + genW - 19, y, gx + genW - 5, y,
+      parts.push(mkLine(gx + genW - 19, y, gx + genW - 5, y,
         { stroke:'#7c2d12', strokeWidth:0.6 }));
     }
-    // control panel (left end)
-    g.push(mkRect(gx + 4, gy + 4, 14, genH - 8,
+    parts.push(mkRect(gx + 4, gy + 4, 14, genH - 8,
       { fill:'#dbeafe', stroke:'#1e3a8a', strokeWidth:1 }));
-    // exhaust stub (top)
-    g.push(mkCircle(gx + genW*0.55, gy - 4, 4,
+    parts.push(mkCircle(gx + genW*0.55, gy - 4, 4,
       { fill:'#94a3b8', stroke:'#334155', strokeWidth:1 }));
-    // labels
-    g.push(mkText('GENSET', gx + genW/2 - 24, gy + genH/2 - 4, 10,
-      { fontWeight:'700', fill:'#7c2d12' }));
-    g.push(mkText('RAD', gx + genW - 20, gy + genH + 3, 7, { fill:'#7c2d12' }));
-    g.push(mkText('CP', gx + 2, gy + genH + 3, 7, { fill:'#1e3a8a' }));
-    g.push(mkText(`${(padW/M2PX).toFixed(1)}×${(padH/M2PX).toFixed(1)}m`,
-      padW/2 - 24, padH + 4, 8, { fill:'#0891b2' }));
-    return mkGroup(g, 'Generator');
+    parts.push(mkText('GENSET', gx + genW/2 - 24, gy + genH/2 - 4, 10,
+      { fontWeight:'700', fill:'#7c2d12', selectable:false }));
+    const grp = mkGroup(parts, 'Generator');
+    return { group: grp, labels: [
+      { text:'GENERATOR + PAD', x: 0, y: -22, kind:'equipment' },
+      { text:`${(padW/M2PX).toFixed(1)}×${(padH/M2PX).toFixed(1)}m`,
+        x: 0, y: padH + 6, kind:'dim' }
+    ]};
   },
   fuel(){
-    // Cylindrical fuel tank — top view as circles (outer shell, inner shell)
     const R = 0.7*M2PX;
-    const g = [];
-    // bund wall (dashed)
-    g.push(mkCircle(R, R, R*1.35,
-      { fill:'transparent', stroke:'#94a3b8', strokeWidth:1,
-        strokeDashArray:[4,3] }));
-    // outer shell
-    g.push(mkCircle(R, R, R,
-      { fill:'#fecaca', stroke:'#7f1d1d', strokeWidth:2 }));
-    // inner shell (wall thickness)
-    g.push(mkCircle(R, R, R*0.9,
-      { fill:'transparent', stroke:'#7f1d1d', strokeWidth:1 }));
-    // fill port + vent + level gauge
-    g.push(mkCircle(R, R - R*0.55, R*0.12,
-      { fill:'#7f1d1d', stroke:'none' }));     // fill port
-    g.push(mkCircle(R + R*0.55, R, R*0.12,
-      { fill:'#0891b2', stroke:'none' }));     // level gauge
-    g.push(mkCircle(R, R + R*0.55, R*0.12,
-      { fill:'#334155', stroke:'none' }));     // vent
-    // label
-    g.push(mkText('FUEL TANK', R - 30, R - 4, 9,
-      { fontWeight:'700', fill:'#7f1d1d' }));
-    g.push(mkText(`Ø${(2*R/M2PX).toFixed(1)}m`, R - 18, R + 10, 7,
-      { fill:'#0891b2' }));
-    return mkGroup(g, 'Fuel Tank');
+    const parts = [];
+    parts.push(mkCircle(R, R, R*1.35,
+      { fill:'transparent', stroke:'#94a3b8', strokeWidth:1, strokeDashArray:[4,3] }));
+    parts.push(mkCircle(R, R, R, { fill:'#fecaca', stroke:'#7f1d1d', strokeWidth:2 }));
+    parts.push(mkCircle(R, R, R*0.9, { fill:'transparent', stroke:'#7f1d1d', strokeWidth:1 }));
+    parts.push(mkCircle(R, R - R*0.55, R*0.12, { fill:'#7f1d1d', stroke:'none' }));
+    parts.push(mkCircle(R + R*0.55, R, R*0.12, { fill:'#0891b2', stroke:'none' }));
+    parts.push(mkCircle(R, R + R*0.55, R*0.12, { fill:'#334155', stroke:'none' }));
+    parts.push(mkText('FUEL', R - 16, R - 4, 9,
+      { fontWeight:'700', fill:'#7f1d1d', selectable:false }));
+    const grp = mkGroup(parts, 'Fuel Tank');
+    return { group: grp, labels: [
+      { text:'FUEL TANK', x: 0, y: -R*1.5 - 6, kind:'equipment' },
+      { text:`Ø${(2*R/M2PX).toFixed(1)}m`, x: 0, y: R*1.5 + 6, kind:'dim' }
+    ]};
   },
   transformer(){
-    // Distribution transformer (plan view): tank + HV/LV bushings + radiator fins
     const W = 1.6*M2PX, H = 1.6*M2PX;
-    const g = [];
-    // tank
-    g.push(mkRect(0, 0, W, H,
-      { fill:'#fef3c7', stroke:'#78350f', strokeWidth:2 }));
-    // internal coil circles
-    g.push(mkCircle(W/2, H/2, W*0.28,
+    const parts = [];
+    parts.push(mkRect(0, 0, W, H, { fill:'#fef3c7', stroke:'#78350f', strokeWidth:2 }));
+    parts.push(mkCircle(W/2, H/2, W*0.28,
       { fill:'transparent', stroke:'#78350f', strokeWidth:1, strokeDashArray:[3,2] }));
-    // HV bushings (3 circles on top)
     for (let i = 0; i < 3; i++){
-      const x = W*0.25 + i * W*0.25;
-      g.push(mkCircle(x, -4, 3, { fill:'#dc2626', stroke:'#7f1d1d', strokeWidth:1 }));
+      parts.push(mkCircle(W*0.25 + i*W*0.25, -4, 3,
+        { fill:'#dc2626', stroke:'#7f1d1d', strokeWidth:1 }));
     }
-    // LV bushings (2 circles below)
     for (let i = 0; i < 2; i++){
-      const x = W*0.33 + i * W*0.34;
-      g.push(mkCircle(x, H + 4, 3,
+      parts.push(mkCircle(W*0.33 + i*W*0.34, H + 4, 3,
         { fill:'#2563eb', stroke:'#1e3a8a', strokeWidth:1 }));
     }
-    // radiator fins (left)
     for (let i = 0; i < 5; i++){
-      g.push(mkLine(-2 - i*2, 4, -2 - i*2, H - 4,
+      parts.push(mkLine(-2 - i*2, 4, -2 - i*2, H - 4,
         { stroke:'#78350f', strokeWidth:0.8 }));
     }
-    // labels
-    g.push(mkText('TRANSFORMER', W/2 - 34, H/2 - 4, 8,
-      { fontWeight:'700', fill:'#78350f' }));
-    g.push(mkText('HV', W/2 - 6, -18, 7, { fill:'#dc2626' }));
-    g.push(mkText('LV', W/2 - 6, H + 10, 7, { fill:'#2563eb' }));
-    return mkGroup(g, 'Transformer');
+    parts.push(mkText('TX', W/2 - 8, H/2 - 4, 9,
+      { fontWeight:'700', fill:'#78350f', selectable:false }));
+    const grp = mkGroup(parts, 'Transformer');
+    return { group: grp, labels: [
+      { text:'TRANSFORMER', x: 0, y: -22, kind:'equipment' },
+      { text:'HV', x: -20, y: -16, kind:'mark', fill:'#dc2626', fontSize:8 },
+      { text:'LV', x: -20, y: H + 10, kind:'mark', fill:'#2563eb', fontSize:8 }
+    ]};
   },
   battery(){
-    // Battery bank — row of cells with polarity marks
     const W = 2.6*M2PX, H = 0.7*M2PX;
-    const cells = 4;
-    const cw = W / cells;
-    const g = [];
+    const cells = 4, cw = W/cells;
+    const parts = [];
     for (let i = 0; i < cells; i++){
-      g.push(mkRect(i*cw, 0, cw, H,
+      parts.push(mkRect(i*cw, 0, cw, H,
         { fill:'#dbeafe', stroke:'#1e3a8a', strokeWidth:1.2 }));
-      // +/- terminals
-      g.push(mkCircle(i*cw + 4, 4, 2, { fill:'#dc2626', stroke:'none' }));
-      g.push(mkCircle(i*cw + cw - 4, 4, 2, { fill:'#1e293b', stroke:'none' }));
-      // cell number
-      g.push(mkText(String(i + 1), i*cw + cw/2 - 3, H/2 - 3, 8,
-        { fill:'#1e3a8a' }));
+      parts.push(mkCircle(i*cw + 4, 4, 2, { fill:'#dc2626', stroke:'none' }));
+      parts.push(mkCircle(i*cw + cw - 4, 4, 2, { fill:'#1e293b', stroke:'none' }));
+      parts.push(mkText(String(i+1), i*cw + cw/2 - 3, H/2 - 3, 8,
+        { fill:'#1e3a8a', selectable:false }));
     }
-    g.push(mkText('BATTERY BANK', W/2 - 32, H + 3, 8,
-      { fontWeight:'700', fill:'#1e3a8a' }));
-    return mkGroup(g, 'Battery');
+    return { group: mkGroup(parts, 'Battery Bank'), labels: [
+      { text:'BATTERY BANK', x: 0, y: -18, kind:'equipment' }
+    ]};
   },
 
-  /* ==================== COOLING ==================== */
+  /* ---------- COOLING ---------- */
   aircon(){
-    // Split AC outdoor unit — top view with fan circle and grille
     const W = 1.0*M2PX, H = 0.6*M2PX;
-    const cx = W*0.65, cy = H/2;
-    const r = Math.min(W, H) * 0.35;
-    const g = [
+    const cx = W*0.65, cy = H/2, r = Math.min(W,H)*0.35;
+    const parts = [
       mkRect(0, 0, W, H, { fill:'#e0f2fe', stroke:'#0369a1', strokeWidth:1.8 }),
+      mkCircle(cx, cy, r, { fill:'#bae6fd', stroke:'#0369a1', strokeWidth:1 }),
+      mkCircle(cx, cy, r*0.2, { fill:'#0369a1', stroke:'#0369a1', strokeWidth:0.5 }),
     ];
-    // fan
-    g.push(mkCircle(cx, cy, r,
-      { fill:'#bae6fd', stroke:'#0369a1', strokeWidth:1 }));
-    g.push(mkCircle(cx, cy, r*0.2,
-      { fill:'#0369a1', stroke:'#0369a1', strokeWidth:0.5 }));
-    // fan blades
     for (let i = 0; i < 4; i++){
-      const a = (i/4) * Math.PI * 2;
-      g.push(mkLine(cx, cy,
-        cx + Math.cos(a)*r*0.85, cy + Math.sin(a)*r*0.85,
+      const a = (i/4)*Math.PI*2;
+      parts.push(mkLine(cx, cy, cx + Math.cos(a)*r*0.85, cy + Math.sin(a)*r*0.85,
         { stroke:'#0369a1', strokeWidth:0.8 }));
     }
-    // condenser coils (left side lines)
     for (let x = 4; x < W*0.35; x += 3){
-      g.push(mkLine(x, 3, x, H - 3,
-        { stroke:'#0369a1', strokeWidth:0.6 }));
+      parts.push(mkLine(x, 3, x, H-3, { stroke:'#0369a1', strokeWidth:0.6 }));
     }
-    g.push(mkText('AC', W*0.18 - 8, H/2 - 3, 8,
-      { fontWeight:'700', fill:'#0c4a6e' }));
-    return mkGroup(g, 'Aircon');
+    return { group: mkGroup(parts, 'Aircon'), labels: [
+      { text:'AIRCON', x: 0, y: -16, kind:'equipment' }
+    ]};
   },
 
-  /* ==================== CABLE INFRASTRUCTURE ==================== */
+  /* ---------- CABLE ---------- */
   cabletray(){
-    // Ladder-type cable tray — two side rails + rungs (top view)
     const W = 4*M2PX, H = 0.4*M2PX;
-    const g = [
+    const parts = [
       mkLine(0, 0, W, 0, { stroke:'#475569', strokeWidth:2 }),
       mkLine(0, H, W, H, { stroke:'#475569', strokeWidth:2 }),
     ];
     for (let x = 4; x < W; x += 6){
-      g.push(mkLine(x, 1, x, H - 1,
-        { stroke:'#475569', strokeWidth:0.8 }));
+      parts.push(mkLine(x, 1, x, H-1, { stroke:'#475569', strokeWidth:0.8 }));
     }
-    g.push(mkText('CABLE TRAY', 8, -12, 8,
-      { fontWeight:'700', fill:'#334155' }));
-    g.push(mkText(`${(W/M2PX).toFixed(1)}m`, W - 22, H + 3, 7,
-      { fill:'#0891b2' }));
-    return mkGroup(g, 'Cable Tray');
+    const grp = mkGroup(parts, 'Cable Tray');
+    return { group: grp, labels: [
+      { text:'CABLE TRAY', x: 0, y: -14, kind:'equipment' },
+      { text:`${(W/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
+    ]};
   },
   openrack(){
-    // 19" open rack — side view (top-down: narrow footprint)
     const W = 0.6*M2PX, H = 2.2*M2PX;
-    const g = [
+    const parts = [
       mkRect(0, 0, W, H, { fill:'#f8fafc', stroke:'#0f172a', strokeWidth:1.8 }),
-      // rails
       mkLine(2, 2, 2, H-2, { stroke:'#475569', strokeWidth:1.5 }),
       mkLine(W-2, 2, W-2, H-2, { stroke:'#475569', strokeWidth:1.5 }),
     ];
-    // U-slots
-    for (let y = 6; y < H - 6; y += 5){
-      g.push(mkLine(3, y, W-3, y, { stroke:'#94a3b8', strokeWidth:0.5 }));
+    for (let y = 6; y < H-6; y += 5){
+      parts.push(mkLine(3, y, W-3, y, { stroke:'#94a3b8', strokeWidth:0.5 }));
     }
-    g.push(mkText('RACK', W/2 - 12, H/2 - 3, 7, { fontWeight:'700' }));
-    return mkGroup(g, 'Open Rack');
+    return { group: mkGroup(parts, 'Open Rack'), labels: [
+      { text:'RACK', x: 0, y: -16, kind:'equipment' }
+    ]};
   },
   hframe(){
-    // H-frame — vertical posts + horizontal arms (front view)
     const W = 2*M2PX, H = 2.5*M2PX;
-    const g = [
-      // posts
+    const parts = [
       mkRect(2, 0, 4, H, { fill:'#334155', stroke:'#0f172a', strokeWidth:1 }),
       mkRect(W-6, 0, 4, H, { fill:'#334155', stroke:'#0f172a', strokeWidth:1 }),
-      // crossbeam
       mkRect(0, H/2 - 3, W, 6, { fill:'#334155', stroke:'#0f172a', strokeWidth:1 }),
-      // splice closures (circles)
       mkCircle(W*0.3, H*0.25, 5, { fill:'#fbbf24', stroke:'#92400e', strokeWidth:1 }),
       mkCircle(W*0.7, H*0.25, 5, { fill:'#fbbf24', stroke:'#92400e', strokeWidth:1 }),
       mkCircle(W*0.3, H*0.75, 5, { fill:'#fbbf24', stroke:'#92400e', strokeWidth:1 }),
       mkCircle(W*0.7, H*0.75, 5, { fill:'#fbbf24', stroke:'#92400e', strokeWidth:1 }),
-      mkText('H-FRAME', W/2 - 22, H + 3, 8, { fontWeight:'700' }),
     ];
-    return mkGroup(g, 'H-Frame');
+    return { group: mkGroup(parts, 'H-Frame'), labels: [
+      { text:'H-FRAME', x: 0, y: H + 6, kind:'equipment' }
+    ]};
   },
 
-  /* ==================== SITE SURFACE ==================== */
+  /* ---------- SURFACE ---------- */
   grass(){
-    // Top view: light green fill with grass tufts and no border
     const W = 8*M2PX, H = 6*M2PX;
-    const g = [
+    const parts = [
       mkRect(0, 0, W, H, {
         fill:'rgba(132,204,22,0.18)', stroke:'#65a30d',
-        strokeWidth:1, strokeDashArray:[6,4]
-      }),
+        strokeWidth:1, strokeDashArray:[6,4] })
     ];
     for (let i = 0; i < 80; i++){
       const x = Math.random()*W, y = Math.random()*H;
-      g.push(mkLine(x, y, x + 2, y - 4,
-        { stroke:'#65a30d', strokeWidth:0.8 }));
-      g.push(mkLine(x + 2, y, x + 4, y - 3,
-        { stroke:'#84cc16', strokeWidth:0.8 }));
+      parts.push(mkLine(x, y, x+2, y-4, { stroke:'#65a30d', strokeWidth:0.8 }));
+      parts.push(mkLine(x+2, y, x+4, y-3, { stroke:'#84cc16', strokeWidth:0.8 }));
     }
-    g.push(mkText('GRASS AREA', W/2 - 32, H/2 - 4, 10,
-      { fontWeight:'700', fill:'#3f6212', opacity:0.5 }));
-    g.push(mkText(`${(W/M2PX).toFixed(1)} × ${(H/M2PX).toFixed(1)}m`,
-      W/2 - 26, -14, 8, { fill:'#0891b2' }));
-    return mkGroup(g, 'Grass');
+    return { group: mkGroup(parts, 'Grass Area'), labels: [
+      { text:'GRASS AREA', x: 0, y: -16, kind:'equipment' }
+    ]};
   },
   cement(){
-    // Concrete slab — light gray with subtle cross-hatch dots (broom finish top-view)
     const W = 8*M2PX, H = 6*M2PX;
-    const g = [
+    const parts = [
       mkRect(0, 0, W, H, {
         fill:'rgba(203,213,225,0.55)', stroke:'#64748b',
-        strokeWidth:1.5, strokeDashArray:[6,3]
-      }),
+        strokeWidth:1.5, strokeDashArray:[6,3] })
     ];
-    // Expansion joints
     for (let x = W/4; x < W; x += W/4){
-      g.push(mkLine(x, 0, x, H, { stroke:'#94a3b8', strokeWidth:0.8,
-        strokeDashArray:[4,3] }));
+      parts.push(mkLine(x, 0, x, H, { stroke:'#94a3b8', strokeWidth:0.8, strokeDashArray:[4,3] }));
     }
     for (let y = H/3; y < H; y += H/3){
-      g.push(mkLine(0, y, W, y, { stroke:'#94a3b8', strokeWidth:0.8,
-        strokeDashArray:[4,3] }));
+      parts.push(mkLine(0, y, W, y, { stroke:'#94a3b8', strokeWidth:0.8, strokeDashArray:[4,3] }));
     }
-    g.push(mkText('CEMENT SLAB', W/2 - 40, H/2 - 5, 11,
-      { fontWeight:'700', fill:'#475569', opacity:0.55 }));
-    g.push(mkText(`${(W/M2PX).toFixed(1)} × ${(H/M2PX).toFixed(1)}m`,
-      W/2 - 26, -14, 8, { fill:'#0891b2' }));
-    return mkGroup(g, 'Cement Slab');
+    return { group: mkGroup(parts, 'Cement Slab'), labels: [
+      { text:'CEMENT SLAB', x: 0, y: -16, kind:'equipment' }
+    ]};
   },
   gravel(){
-    // Gravel pad — random gray dots
     const W = 6*M2PX, H = 4*M2PX;
-    const g = [
+    const parts = [
       mkRect(0, 0, W, H, {
-        fill:'rgba(168,162,158,0.25)', stroke:'#78716c', strokeWidth:1
-      }),
+        fill:'rgba(168,162,158,0.25)', stroke:'#78716c', strokeWidth:1 })
     ];
     for (let i = 0; i < 120; i++){
       const x = Math.random()*W, y = Math.random()*H;
-      g.push(mkCircle(x, y, 0.8 + Math.random()*1.2,
+      parts.push(mkCircle(x, y, 0.8 + Math.random()*1.2,
         { fill:'#78716c', stroke:'none', opacity:0.65 }));
     }
-    return mkGroup(g, 'Gravel');
+    return { group: mkGroup(parts, 'Gravel Pad'), labels: [
+      { text:'GRAVEL', x: 0, y: -16, kind:'equipment' }
+    ]};
   },
   wall(){
-    // Wall section — double parallel lines with brick pattern (top view)
     const W = 5*M2PX, H = 6;
-    const g = [
-      mkRect(0, 0, W, H, { fill:'#a8a29e', stroke:'#44403c', strokeWidth:1.5 }),
+    const parts = [
+      mkRect(0, 0, W, H, { fill:'#a8a29e', stroke:'#44403c', strokeWidth:1.5 })
     ];
-    // brick joints
     for (let x = 8; x < W; x += 8){
-      g.push(mkLine(x, 0, x, H, { stroke:'#44403c', strokeWidth:0.5 }));
+      parts.push(mkLine(x, 0, x, H, { stroke:'#44403c', strokeWidth:0.5 }));
     }
-    g.push(mkLine(0, H/2, W, H/2, { stroke:'#44403c', strokeWidth:0.5 }));
-    return mkGroup(g, 'Wall');
+    parts.push(mkLine(0, H/2, W, H/2, { stroke:'#44403c', strokeWidth:0.5 }));
+    return { group: mkGroup(parts, 'Wall'), labels: [] };
   },
 };
 
+function cabGeneric(bays, name){
+  const W = (0.6*bays)*M2PX, H = 2.2*M2PX;
+  const parts = [
+    mkRect(0, 0, W, H, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth:1.8 })
+  ];
+  for (let i = 1; i < bays; i++){
+    parts.push(mkLine(i*W/bays, 2, i*W/bays, H-2,
+      { stroke:'#475569', strokeWidth:0.8 }));
+  }
+  parts.push(mkText(bays+'B', W/2 - 8, H/2 - 4, 8,
+    { fontWeight:'700', selectable:false }));
+  return { group: mkGroup(parts, name), labels: [
+    { text: name.toUpperCase(), x: 0, y: -16, kind:'equipment' }
+  ]};
+}
+
+/* ★ Label stencils — pure text, no shape attached */
+const LABEL_STENCILS = {
+  label_equipment: { text: 'EQUIPMENT', kind:'equipment', fontSize: 12, fill: '#0f172a' },
+  label_cable:     { text: 'C-01', kind:'cable', fontSize: 11, fill: '#dc2626',
+                     bg: 'rgba(255,241,242,0.9)' },
+  label_zone:      { text: 'ZONE A', kind:'zone', fontSize: 16, fill: '#7c3aed',
+                     bg: 'rgba(243,232,255,0.9)' },
+  label_note:      { text: 'NOTE: ...', kind:'note', fontSize: 11, fill: '#334155',
+                     bg: 'rgba(241,245,249,0.95)' },
+};
+
 /* =====================================================================
-   6. CANVAS INIT
+   7. CANVAS INIT
    ===================================================================== */
 function initCanvas(){
   canvas = new fabric.Canvas('c', {
@@ -1148,14 +1170,15 @@ function initCanvas(){
   canvas.on('object:added', opt => {
     if (opt.target && !opt.target.isBackground){
       opt.target.set({ perPixelTargetFind:true, padding:2 });
+      if (!opt.target._uid) opt.target._uid = uid();
     }
     markDirty(); refreshPanels();
   });
-  canvas.on('object:modified', () => { markDirty(); refreshPanels(); });
+  canvas.on('object:modified', () => { markDirty(); refreshPanels(); syncSelectionPanel(); });
   canvas.on('object:removed',  () => { refreshPanels(); });
-  canvas.on('selection:created', refreshPanels);
-  canvas.on('selection:updated', refreshPanels);
-  canvas.on('selection:cleared', refreshPanels);
+  canvas.on('selection:created', () => { refreshPanels(); syncSelectionPanel(); });
+  canvas.on('selection:updated', () => { refreshPanels(); syncSelectionPanel(); });
+  canvas.on('selection:cleared', () => { refreshPanels(); syncSelectionPanel(); });
 
   canvas.on('mouse:dblclick', opt => {
     const t = opt.target;
@@ -1168,7 +1191,7 @@ function initCanvas(){
 }
 
 /* =====================================================================
-   7. GRID
+   8. GRID
    ===================================================================== */
 function drawGridOverlay(){
   const showGrid = $('show-grid').checked;
@@ -1183,15 +1206,15 @@ function drawGridOverlay(){
   cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, size, size);
   cx.strokeStyle = '#e2e8f0'; cx.lineWidth = 1;
   cx.beginPath();
-  cx.moveTo(size - .5, 0); cx.lineTo(size - .5, size);
-  cx.moveTo(0, size - .5); cx.lineTo(size, size - .5);
+  cx.moveTo(size-.5, 0); cx.lineTo(size-.5, size);
+  cx.moveTo(0, size-.5); cx.lineTo(size, size-.5);
   cx.stroke();
   canvas.setBackgroundColor({ source: pc, repeat: 'repeat' },
                             canvas.renderAll.bind(canvas));
 }
 
 /* =====================================================================
-   8. SNAP
+   9. SNAP
    ===================================================================== */
 function snapPt(p){
   let x = p.x, y = p.y;
@@ -1204,7 +1227,7 @@ function snapPt(p){
     const TOL = 12;
     let best = null, bestD = TOL;
     for (const o of canvas.getObjects()){
-      if (o === activeShape || o.isBackground) continue;
+      if (o === activeShape || o.isBackground || o._isStencilLabel) continue;
       const b = o.getBoundingRect(true, true);
       const pts = [
         {x:b.left,y:b.top},{x:b.left+b.width,y:b.top},
@@ -1222,7 +1245,7 @@ function snapPt(p){
 }
 
 /* =====================================================================
-   9. POINTER HANDLERS
+   10. POINTER HANDLERS
    ===================================================================== */
 function onDown(opt){
   if (spaceDown || currentTool === 'pan'){
@@ -1239,12 +1262,17 @@ function onDown(opt){
     placeStencil(pendingStencil, p.x, p.y);
     return;
   }
+  if (pendingLabelId){
+    const p = canvas.getPointer(opt.e);
+    placeLabel(pendingLabelId, p.x, p.y);
+    return;
+  }
   if (currentTool === 'select'){
     if (opt.target && opt.e.altKey && !opt.target.isBackground){
       const orig = opt.target;
       orig.clone(c => {
         c.set({ left:orig.left, top:orig.top, evented:true, selectable:true,
-                perPixelTargetFind:true, padding:2 });
+                perPixelTargetFind:true, padding:2, _uid: uid() });
         canvas.add(c); canvas.setActiveObject(c); canvas.renderAll();
         toast('Duplicated');
       });
@@ -1314,7 +1342,7 @@ function onDown(opt){
     });
     canvas.add(activeShape);
   } else if (currentTool === 'text'){
-    const label = new fabric.IText($('text-value').value || 'TEXT', {
+    const label = new fabric.IText($('text-value').value || 'LABEL', {
       left:p.x, top:p.y, fill:sColor,
       fontSize: parseInt($('font-size').value),
       fontFamily:'system-ui, sans-serif', fontWeight:'600',
@@ -1414,11 +1442,9 @@ function onUp(){
   if (isPen && activeShape.path.length < 3 && !drawMoved){
     canvas.remove(activeShape); activeShape = null; return;
   }
-
   try {
     if (activeShape.type === 'line'){
-      const len = Math.hypot(activeShape.x2 - activeShape.x1,
-                             activeShape.y2 - activeShape.y1);
+      const len = Math.hypot(activeShape.x2 - activeShape.x1, activeShape.y2 - activeShape.y1);
       if (len < 3){ canvas.remove(activeShape); activeShape = null; shiftAxis = null; return; }
     }
     if (activeShape.type === 'rect' &&
@@ -1431,6 +1457,7 @@ function onUp(){
   } catch(_) {}
 
   activeShape.set({ selectable:true, evented:true, perPixelTargetFind:true, padding:2 });
+  activeShape._uid = uid();
   canvas.setActiveObject(activeShape);
 
   if (showDims && (activeShape.type === 'line' || activeShape._isDimension)){
@@ -1439,6 +1466,7 @@ function onUp(){
   activeShape = null; shiftAxis = null;
   canvas.requestRenderAll();
   markDirty(); refreshPanels();
+  syncSelectionPanel();
 }
 
 function addDimensionLabel(line){
@@ -1456,39 +1484,71 @@ function addDimensionLabel(line){
     angle: (Math.abs(angle) > 90 ? angle + 180 : angle),
   });
   txt._isAnnotation = true;
+  txt._uid = uid();
   canvas.add(txt);
 }
 
 /* =====================================================================
-   10. STENCIL PLACEMENT
+   11. ★ STENCIL PLACEMENT (with DETACHED LABELS)
    ===================================================================== */
 function placeStencil(id, x, y){
   const fn = STENCILS[id];
   if (!fn){ toast('Unknown stencil', 'err'); pendingStencil = null; return; }
   try {
-    const grp = fn();
-    grp.set({
+    const { group, labels } = fn();
+    group.set({
       left:x, top:y, originX:'center', originY:'center',
       perPixelTargetFind:true, padding:2,
     });
-    canvas.add(grp);
-    canvas.setActiveObject(grp);
+    canvas.add(group);
+
+    // Place detached labels around the object — each editable/deletable individually
+    if (labels && labels.length){
+      const b = group.getBoundingRect(true, true);
+      labels.forEach((L, i) => {
+        // Compute absolute position relative to group's bounding box
+        const lx = b.left + b.width/2 + L.x;
+        const ly = b.top + (L.y !== undefined ? L.y : 0) + (L.y < 0 ? 0 : b.height);
+        const opt = Object.assign({ boundTo: group._uid, kind: L.kind }, L);
+        const lbl = makeDetachedLabel(L.text, lx - 30, ly, opt);
+        canvas.add(lbl);
+      });
+    }
+    canvas.setActiveObject(group);
     canvas.renderAll();
     toast('Placed: ' + id.replace(/_/g,' '));
   } catch(e){
     toast('Stencil failed: ' + e.message, 'err');
+    console.error(e);
   }
   pendingStencil = null;
   setTool('select');
   $('stencil-panel').classList.remove('open');
 }
 
+function placeLabel(id, x, y){
+  const def = LABEL_STENCILS[id];
+  if (!def){ toast('Unknown label', 'err'); pendingLabelId = null; return; }
+  const lbl = makeDetachedLabel(def.text, x - 40, y - 10, {
+    fontSize: def.fontSize, fill: def.fill,
+    bg: def.bg, kind: def.kind,
+  });
+  canvas.add(lbl);
+  canvas.setActiveObject(lbl);
+  canvas.renderAll();
+  toast('Label placed — drag, double-click to edit');
+  pendingLabelId = null;
+  setTool('select');
+  $('stencil-panel').classList.remove('open');
+}
+
 /* =====================================================================
-   11. TOOLS
+   12. TOOLS
    ===================================================================== */
 function setTool(tool){
   if (currentTool === 'polyline' && polyPreview) finalizePolyline();
   pendingStencil = null;
+  pendingLabelId = null;
   currentTool = tool;
   document.querySelectorAll('.tbtn[data-tool]').forEach(b =>
     b.classList.toggle('active', b.dataset.tool === tool));
@@ -1507,6 +1567,7 @@ function finalizePolyline(){
     return;
   }
   polyPreview.set({ selectable:true, evented:true, perPixelTargetFind:true, padding:2 });
+  polyPreview._uid = uid();
   canvas.setActiveObject(polyPreview);
   canvas.requestRenderAll();
   markDirty(); refreshPanels();
@@ -1518,13 +1579,19 @@ function finalizePolyline(){
 $('tbtn-stencil').onclick = () => $('stencil-panel').classList.toggle('open');
 document.querySelectorAll('.stencil').forEach(el => {
   el.onclick = () => {
-    pendingStencil = el.dataset.stencil;
-    toast(`Click on canvas to place: ${el.dataset.stencil.replace(/_/g,' ')}`);
+    const id = el.dataset.stencil;
+    if (id in LABEL_STENCILS){
+      pendingLabelId = id;
+      toast(`Click on canvas to place: ${id.replace(/_/g,' ')}`);
+    } else {
+      pendingStencil = id;
+      toast(`Click on canvas to place: ${id.replace(/_/g,' ')}`);
+    }
   };
 });
 
 /* =====================================================================
-   12. HELPERS
+   13. HELPERS
    ===================================================================== */
 function hexWithAlpha(hex, alpha){
   if (!hex || hex[0] !== '#') return hex;
@@ -1533,20 +1600,274 @@ function hexWithAlpha(hex, alpha){
   const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
   return `rgba(${r},${g},${b},${alpha})`;
 }
+function rgbaToHex(rgba){
+  if (!rgba) return '#000000';
+  if (rgba[0] === '#') return rgba.slice(0,7);
+  const m = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!m) return '#000000';
+  return '#' + [m[1],m[2],m[3]].map(v => (+v).toString(16).padStart(2,'0')).join('');
+}
+function hexAlphaOf(rgba){
+  if (!rgba || rgba[0] === '#') return 1;
+  const m = rgba.match(/rgba\([^)]+,\s*([\d.]+)\s*\)/);
+  return m ? parseFloat(m[1]) : 1;
+}
 
 /* =====================================================================
-   13. HISTORY
+   14. ★ LIVE SELECTION PANEL
+   ===================================================================== */
+const selFieldIds = ['row-stroke','row-strokew','row-fill','row-text',
+                     'row-fontsize','row-fontstyle','row-opacity','row-angle',
+                     'row-geom','row-actions'];
+
+function showSelField(id, on){
+  const el = $(id);
+  if (!el) return;
+  el.classList.toggle('on', !!on);
+}
+
+function syncSelectionPanel(){
+  const objs = canvas.getActiveObjects();
+  const o = objs[0];
+  const multi = objs.length > 1;
+  const empty = $('sel-empty');
+  const props = $('sel-props');
+
+  if (!o){
+    empty.style.display = 'block';
+    props.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  props.style.display = 'block';
+
+  const typeLabel = multi ? `${objs.length} objects selected`
+                          : (o._isStencilLabel ? 'Label'
+                            : o._isAnnotation ? 'Dimension label'
+                            : o.type);
+  $('sel-type').textContent = typeLabel;
+  $('sel-uid').textContent = o._uid || '';
+
+  const isText  = ['i-text','text','textbox'].includes(o.type);
+  const isLine  = o.type === 'line' || o.type === 'path' || o.type === 'polyline';
+  const isShape = ['rect','circle','triangle','polygon','ellipse','group'].includes(o.type);
+  const hasStroke = o.stroke !== undefined && o.stroke !== null && o.stroke !== 'transparent';
+  const hasFill = o.fill !== undefined && o.fill !== null && o.fill !== 'transparent';
+
+  // Show/hide field rows based on type
+  showSelField('row-stroke',   hasStroke || isShape || isLine || isText);
+  showSelField('row-strokew',  isShape || isLine || isText);
+  showSelField('row-fill',     !isText);   // text uses fill as color
+  showSelField('row-text',     isText);
+  showSelField('row-fontsize', isText);
+  showSelField('row-fontstyle', isText);
+  showSelField('row-opacity',  true);
+  showSelField('row-angle',    true);
+  showSelField('row-geom',     true);
+  showSelField('row-actions',  true);
+
+  // Populate values
+  const strokeHex = rgbaToHex(o.stroke);
+  $('sel-stroke-color').value = strokeHex;
+  const sw = Math.max(0, Math.round(o.strokeWidth || 0));
+  $('sel-stroke-width').value = sw;
+  $('sel-sw-val').textContent = sw + 'px';
+
+  const fillHex = rgbaToHex(o.fill);
+  $('sel-fill-color').value = fillHex;
+  $('sel-fill-enabled').checked = hasFill;
+  const fo = Math.round(hexAlphaOf(o.fill) * 100);
+  $('sel-fill-opacity').value = fo;
+  $('sel-fillop-val').textContent = fo + '%';
+
+  if (isText){
+    $('sel-text').value = o.text || '';
+    $('sel-font-size').value = o.fontSize || 16;
+    $('sel-fs-val').textContent = (o.fontSize || 16) + 'px';
+    $('sel-bold').checked = String(o.fontWeight) === '700' ||
+                            String(o.fontWeight) === 'bold';
+    $('sel-italic').checked = o.fontStyle === 'italic';
+  }
+
+  const op = Math.round((o.opacity == null ? 1 : o.opacity) * 100);
+  $('sel-opacity').value = op;
+  $('sel-op-val').textContent = op + '%';
+
+  const ang = Math.round(o.angle || 0);
+  $('sel-angle').value = ang;
+  $('sel-angle-val').textContent = ang + '°';
+
+  $('sel-x').value = Math.round(o.left || 0);
+  $('sel-y').value = Math.round(o.top || 0);
+  $('sel-w').value = Math.round((o.width || 0) * (o.scaleX || 1));
+  $('sel-h').value = Math.round((o.height || 0) * (o.scaleY || 1));
+  $('sel-lock-ratio').classList.toggle('active', lockRatio);
+}
+
+function applyToSelection(fn){
+  const objs = canvas.getActiveObjects();
+  if (!objs.length) return;
+  objs.forEach(fn);
+  canvas.renderAll();
+  markDirty();
+  syncSelectionPanel();
+}
+
+/* ---- Live binding: stroke color ---- */
+$('sel-stroke-color').oninput = e => {
+  applyToSelection(o => o.set('stroke', e.target.value));
+};
+$('sel-stroke-width').oninput = e => {
+  const v = parseInt(e.target.value);
+  $('sel-sw-val').textContent = v + 'px';
+  applyToSelection(o => o.set('strokeWidth', v));
+};
+
+/* ---- Fill ---- */
+$('sel-fill-enabled').onchange = e => {
+  const on = e.target.checked;
+  applyToSelection(o => {
+    if (on){
+      const cur = $('sel-fill-color').value;
+      const a = parseInt($('sel-fill-opacity').value) / 100;
+      o.set('fill', hexWithAlpha(cur, a));
+    } else {
+      o.set('fill', 'transparent');
+    }
+  });
+};
+$('sel-fill-color').oninput = e => {
+  const a = parseInt($('sel-fill-opacity').value) / 100;
+  const hex = e.target.value;
+  applyToSelection(o => {
+    if (o.type !== 'i-text' && o.type !== 'text' && o.type !== 'textbox'){
+      o.set('fill', hexWithAlpha(hex, a));
+    }
+  });
+};
+$('sel-fill-opacity').oninput = e => {
+  const a = parseInt(e.target.value) / 100;
+  $('sel-fillop-val').textContent = e.target.value + '%';
+  const hex = $('sel-fill-color').value;
+  applyToSelection(o => {
+    if (o.type !== 'i-text' && o.type !== 'text' && o.type !== 'textbox'){
+      o.set('fill', hexWithAlpha(hex, a));
+    }
+  });
+};
+
+/* ---- Text ---- */
+$('sel-text').oninput = e => {
+  applyToSelection(o => {
+    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+      o.set('text', e.target.value);
+    }
+  });
+};
+$('sel-font-size').oninput = e => {
+  const v = parseInt(e.target.value);
+  $('sel-fs-val').textContent = v + 'px';
+  applyToSelection(o => {
+    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+      o.set('fontSize', v);
+    }
+  });
+};
+$('sel-bold').onchange = e => {
+  applyToSelection(o => {
+    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+      o.set('fontWeight', e.target.checked ? '700' : '400');
+    }
+  });
+};
+$('sel-italic').onchange = e => {
+  applyToSelection(o => {
+    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+      o.set('fontStyle', e.target.checked ? 'italic' : 'normal');
+    }
+  });
+};
+
+/* ---- Opacity ---- */
+$('sel-opacity').oninput = e => {
+  const v = parseInt(e.target.value) / 100;
+  $('sel-op-val').textContent = e.target.value + '%';
+  applyToSelection(o => o.set('opacity', v));
+};
+
+/* ---- Angle ---- */
+$('sel-angle').oninput = e => {
+  const v = parseInt(e.target.value);
+  $('sel-angle-val').textContent = v + '°';
+  applyToSelection(o => { o.rotate(v); o.setCoords(); });
+};
+
+/* ---- Position & Size ---- */
+$('sel-x').onchange = e => {
+  const v = parseFloat(e.target.value);
+  applyToSelection(o => o.set('left', v));
+};
+$('sel-y').onchange = e => {
+  const v = parseFloat(e.target.value);
+  applyToSelection(o => o.set('top', v));
+};
+$('sel-w').onchange = e => {
+  const v = parseFloat(e.target.value);
+  applyToSelection(o => {
+    const baseW = o.width || 1;
+    const newScaleX = v / baseW;
+    if (lockRatio){
+      o.set({ scaleX: newScaleX, scaleY: newScaleX });
+    } else {
+      o.set('scaleX', newScaleX);
+    }
+  });
+};
+$('sel-h').onchange = e => {
+  const v = parseFloat(e.target.value);
+  applyToSelection(o => {
+    const baseH = o.height || 1;
+    const newScaleY = v / baseH;
+    if (lockRatio){
+      o.set({ scaleX: newScaleY, scaleY: newScaleY });
+    } else {
+      o.set('scaleY', newScaleY);
+    }
+  });
+};
+$('sel-lock-ratio').onclick = () => {
+  lockRatio = !lockRatio;
+  $('sel-lock-ratio').classList.toggle('active', lockRatio);
+};
+$('sel-reset-size').onclick = () => {
+  applyToSelection(o => o.set({ scaleX:1, scaleY:1 }));
+  toast('Size reset');
+};
+
+/* ---- Layer order + actions ---- */
+$('sel-front').onclick = () => {
+  const o = canvas.getActiveObject();
+  if (o) { canvas.bringToFront(o); markDirty(); }
+};
+$('sel-back').onclick = () => {
+  const o = canvas.getActiveObject();
+  if (o) { canvas.sendToBack(o); markDirty(); }
+};
+$('sel-dup').onclick = duplicateSel;
+$('sel-del').onclick = deleteSel;
+
+/* =====================================================================
+   15. HISTORY
    ===================================================================== */
 const MAX_HISTORY = 80, MAX_BYTES = 4_000_000;
 function serialize(){
   try {
     return JSON.stringify({
-      v: 1,
+      v: 3,
       canvas: { w: canvas.getWidth(), h: canvas.getHeight() },
-      fabric: canvas.toJSON(['selectable','evented','isBackground',
-                             '_isCable','_isAnnotation','_isDimension']),
+      fabric: canvas.toJSON(CUSTOM_PROPS),
     });
-  } catch(e){ return '{"v":1,"fabric":{"objects":[]}}'; }
+  } catch(e){ return '{"v":3,"fabric":{"objects":[]}}'; }
 }
 let saveTimer;
 function markDirty(){
@@ -1589,32 +1910,43 @@ function applySnapshot(j){
       });
       canvas.renderAll();
       refreshPanels();
+      syncSelectionPanel();
     });
   } catch(e){ toast('Restore failed: ' + e.message, 'err'); }
 }
 
 /* =====================================================================
-   14. ACTIONS
+   16. ACTIONS
    ===================================================================== */
 function deleteSel(){
   const objs = canvas.getActiveObjects();
   if (!objs.length){ toast('Nothing selected', 'warn'); return; }
   objs.forEach(o => canvas.remove(o));
   canvas.discardActiveObject();
-  refreshPanels(); toast('Deleted ' + objs.length);
+  refreshPanels(); syncSelectionPanel(); toast('Deleted ' + objs.length);
 }
 function duplicateSel(){
   const objs = canvas.getActiveObjects();
   if (!objs.length){ toast('Nothing selected', 'warn'); return; }
+  const newOnes = [];
+  let pending = objs.length;
   objs.forEach(o => {
     o.clone(c => {
       c.set({ left:(o.left||0)+20, top:(o.top||0)+20,
-              perPixelTargetFind:true, padding:2 });
+              perPixelTargetFind:true, padding:2, _uid: uid() });
       canvas.add(c);
+      newOnes.push(c);
+      if (--pending === 0){
+        canvas.discardActiveObject();
+        if (newOnes.length === 1) canvas.setActiveObject(newOnes[0]);
+        else canvas.setActiveObject(new fabric.ActiveSelection(newOnes, { canvas }));
+        canvas.renderAll();
+        refreshPanels();
+        syncSelectionPanel();
+      }
     });
   });
-  canvas.discardActiveObject();
-  refreshPanels(); toast('Duplicated');
+  toast('Duplicated');
 }
 function rotate90(){
   const o = canvas.getActiveObject();
@@ -1622,7 +1954,7 @@ function rotate90(){
   o.rotate((o.angle || 0) + 90);
   o.setCoords();
   canvas.renderAll();
-  markDirty();
+  markDirty(); syncSelectionPanel();
 }
 function flipSel(){
   const o = canvas.getActiveObject();
@@ -1636,11 +1968,11 @@ function clearAll(){
   if (!n){ toast('Nothing to clear', 'warn'); return; }
   if (!confirm(`Clear ${n} object(s)?`)) return;
   canvas.getObjects().forEach(o => canvas.remove(o));
-  refreshPanels(); toast('Cleared');
+  refreshPanels(); syncSelectionPanel(); toast('Cleared');
 }
 
 /* =====================================================================
-   15. IMAGE
+   17. IMAGE
    ===================================================================== */
 const MAX_IMAGE_DIM = 4096;
 function downscaleIfNeeded(dataUrl){
@@ -1721,7 +2053,7 @@ document.addEventListener('drop', e => {
 });
 
 /* =====================================================================
-   16. VIEW
+   18. VIEW
    ===================================================================== */
 function applyView(){
   $('canvas-holder').style.transform =
@@ -1770,7 +2102,7 @@ window.addEventListener('mousemove', e => {
 });
 
 /* =====================================================================
-   17. PANELS
+   19. PANELS
    ===================================================================== */
 function refreshPanels(){ updateHud(); updateStorageInfo(); }
 function updateHud(){
@@ -1788,7 +2120,7 @@ function updateStorageInfo(){
 }
 
 /* =====================================================================
-   18. EXPORT
+   20. EXPORT
    ===================================================================== */
 function download(blob, name){
   const a = document.createElement('a');
@@ -1819,14 +2151,13 @@ function exportPNG(scale){
 function exportJSON(){
   try {
     const data = {
-      version: 1, kind: 'telecom_site_layout',
+      version: 3, kind: 'telecom_site_layout',
       exported: new Date().toISOString(),
       canvas: { width: canvas.getWidth(), height: canvas.getHeight() },
       scale: { m_per_px: parseFloat($('scale-m').value || 0.05),
                unit: $('unit-label').value || 'm' },
       file_name: fileName,
-      fabric: canvas.toJSON(['selectable','evented','isBackground',
-                             '_isCable','_isAnnotation','_isDimension','_stencilLabel']),
+      fabric: canvas.toJSON(CUSTOM_PROPS),
     };
     download(new Blob([JSON.stringify(data, null, 2)], { type:'application/json' }),
              (fileName || 'site_layout').replace(/\s+/g,'_') + '.json');
@@ -1859,8 +2190,9 @@ function loadJSONDialog(){
           canvas.forEachObject(o => {
             o.evented = true;
             o.set({ perPixelTargetFind:true, padding:2 });
+            if (!o._uid) o._uid = uid();
           });
-          canvas.renderAll(); refreshPanels();
+          canvas.renderAll(); refreshPanels(); syncSelectionPanel();
           toast('Layout loaded');
         });
       } catch(err){ toast('Load failed: ' + err.message, 'err'); }
@@ -1886,7 +2218,7 @@ function printPlan(){
 }
 
 /* =====================================================================
-   19. SAVE / RESTORE
+   21. SAVE / RESTORE
    ===================================================================== */
 function saveLocal(){
   if (!Storage.available()) return;
@@ -1907,8 +2239,9 @@ function loadLocal(){
       canvas.forEachObject(o => {
         o.evented = true;
         o.set({ perPixelTargetFind:true, padding:2 });
+        if (!o._uid) o._uid = uid();
       });
-      canvas.renderAll(); refreshPanels();
+      canvas.renderAll(); refreshPanels(); syncSelectionPanel();
       const n = canvas.getObjects().filter(o => !o.isBackground).length;
       toast(`Restored session (${n} object${n===1?'':'s'})`);
     });
@@ -1917,10 +2250,11 @@ function loadLocal(){
 }
 
 /* =====================================================================
-   20. KEYBOARD
+   22. KEYBOARD
    ===================================================================== */
 document.addEventListener('keydown', e => {
-  const editing = e.target.tagName === 'INPUT' || e.target.isContentEditable;
+  const editing = e.target.tagName === 'INPUT' || e.target.isContentEditable ||
+                  e.target.tagName === 'TEXTAREA';
   if ((e.ctrlKey||e.metaKey) && e.shiftKey && e.key.toLowerCase()==='d'){
     e.preventDefault(); runDiagnostics(); return;
   }
@@ -1941,6 +2275,7 @@ document.addEventListener('keydown', e => {
       if (!objs.length) return;
       const sel = new fabric.ActiveSelection(objs, { canvas });
       canvas.setActiveObject(sel); canvas.renderAll();
+      syncSelectionPanel();
     }
     return;
   }
@@ -1956,8 +2291,9 @@ document.addEventListener('keydown', e => {
   else if (k === 'f') fitView();
   else if (k === 'escape'){
     if (polyPreview) finalizePolyline();
-    pendingStencil = null;
+    pendingStencil = null; pendingLabelId = null;
     canvas.discardActiveObject(); canvas.renderAll();
+    syncSelectionPanel();
   }
   else if (k === 'enter'){ if (polyPreview) finalizePolyline(); }
 });
@@ -1972,7 +2308,7 @@ window.addEventListener('blur', () => {
 });
 
 /* =====================================================================
-   21. DIAGNOSTICS
+   23. DIAGNOSTICS
    ===================================================================== */
 function runDiagnostics(){
   const lines = [
@@ -1983,7 +2319,9 @@ function runDiagnostics(){
     'Storage bytes: ' + Storage.bytes(),
     'Canvas: ' + canvas.getWidth()+'×'+canvas.getHeight(),
     'Objects: ' + canvas.getObjects().length,
+    'Labels: ' + canvas.getObjects().filter(o=>o._isStencilLabel).length,
     'Stencils: ' + Object.keys(STENCILS).length,
+    'Label stencils: ' + Object.keys(LABEL_STENCILS).length,
     'Undo: ' + undoStack.length + ' / Redo: ' + redoStack.length,
     'UA: ' + navigator.userAgent,
   ];
@@ -1996,7 +2334,7 @@ function runDiagnostics(){
 }
 
 /* =====================================================================
-   22. TOOLBAR BINDINGS
+   24. TOOLBAR BINDINGS
    ===================================================================== */
 $('tb-new').onclick = () => {
   if (!confirm('New site plan? Unsaved work will be lost.')) return;
@@ -2004,8 +2342,7 @@ $('tb-new').onclick = () => {
   canvas.setBackgroundImage(null, canvas.renderAll.bind(canvas));
   canvas.setWidth(CW); canvas.setHeight(CH);
   fileName = 'Untitled Site Plan'; $('file-label').textContent = fileName;
-  // NOTE: no drop-hint re-show — it's removed permanently
-  fitView(); refreshPanels();
+  fitView(); refreshPanels(); syncSelectionPanel();
   toast('New plan started');
 };
 $('tb-load-json').onclick = loadJSONDialog;
@@ -2036,11 +2373,6 @@ $('font-size').oninput    = e => $('fs-val').textContent = e.target.value + 'px'
 $('fill-opacity').oninput = e => $('fill-op-val').textContent = e.target.value + '%';
 $('grid-size').oninput    = e => { $('grid-val').textContent = e.target.value + 'px'; drawGridOverlay(); };
 $('show-grid').onchange   = drawGridOverlay;
-$('btn-dup').onclick = duplicateSel;
-$('btn-del').onclick = deleteSel;
-$('btn-rot90').onclick = rotate90;
-$('btn-flip').onclick = flipSel;
-$('btn-clear').onclick = clearAll;
 $('btn-backup').onclick = exportJSON;
 $('btn-reset').onclick = () => {
   if (!confirm('Reset session?')) return;
@@ -2065,7 +2397,7 @@ function buildPalette(){
 }
 
 /* =====================================================================
-   23. HEIGHT SYNC
+   25. HEIGHT SYNC
    ===================================================================== */
 function syncFrameHeight(){
   try {
@@ -2081,7 +2413,7 @@ window.addEventListener('resize', syncFrameHeight);
 setInterval(syncFrameHeight, 3000);
 
 /* =====================================================================
-   24. BOOT — drop-hint is removed permanently
+   26. BOOT
    ===================================================================== */
 (async function boot(){
   try {
@@ -2092,18 +2424,16 @@ setInterval(syncFrameHeight, 3000);
     initCanvas();
     tightenSelectionBoxes();
     buildPalette();
-
-    // ★ Remove the drop-hint element entirely — it no longer exists in DOM
     const hint = document.getElementById('drop-hint');
     if (hint) hint.remove();
 
     setTimeout(() => fitView(), 100);
-
     Boot.show('Restoring session…');
     setTimeout(() => {
       loadLocal();
       Boot.ready();
-      toast('Ready — open 📦 stencils to place equipment');
+      syncSelectionPanel();
+      toast('Ready — try 📦 stencils or 🏷️ labels');
     }, 200);
   } catch(e){
     console.error('[boot]', e);
