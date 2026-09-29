@@ -40,9 +40,7 @@ APP_HTML = r"""<!DOCTYPE html>
   #boot .err{color:#f87171;font-size:.85rem;max-width:520px;text-align:center;
     line-height:1.6;padding:20px;background:#1c1414;border:1px solid #7f1d1d;
     border-radius:12px;margin-top:12px}
-
   #app{display:flex;height:100vh}
-
   #topstrip{position:absolute;top:0;left:0;right:0;height:44px;
     background:#0d1524;border-bottom:1px solid #1f2a44;
     display:flex;align-items:center;padding:0 10px;gap:4px;z-index:30}
@@ -55,7 +53,6 @@ APP_HTML = r"""<!DOCTYPE html>
   #topstrip button:hover{background:#1c2640;color:#e2e8f0}
   #topstrip .filelabel{color:#7c8db5;font-size:.72rem;margin-left:auto;
     display:flex;gap:8px;align-items:center}
-
   #sidebar{width:52px;background:#0f1626;border-right:1px solid #1f2a44;
     flex-shrink:0;display:flex;flex-direction:column;align-items:center;
     padding-top:52px;gap:3px;z-index:20;overflow-y:auto}
@@ -76,7 +73,6 @@ APP_HTML = r"""<!DOCTYPE html>
   .tbtn.sep{margin-top:6px;position:relative}
   .tbtn.sep::before{content:'';position:absolute;top:-3px;left:6px;right:6px;
     height:1px;background:#1f2a44}
-
   #stencil-panel{position:absolute;top:52px;left:52px;width:280px;
     background:#0f1626;border:1px solid #1f2a44;border-radius:0 0 10px 0;
     z-index:25;max-height:calc(100vh - 60px);overflow-y:auto;
@@ -94,8 +90,7 @@ APP_HTML = r"""<!DOCTYPE html>
     display:flex;flex-direction:column;align-items:center;gap:4px}
   .stencil:hover{background:#1c2640;border-color:#3b82f6;
     transform:translateY(-1px);box-shadow:0 4px 10px rgba(0,0,0,.3)}
-
-  #props{width:280px;background:#0f1626;border-left:1px solid #1f2a44;
+  #props{width:290px;background:#0f1626;border-left:1px solid #1f2a44;
     padding:60px 12px 20px;overflow-y:auto;flex-shrink:0;z-index:15}
   #props::-webkit-scrollbar{width:6px}
   #props::-webkit-scrollbar-thumb{background:#27344f;border-radius:3px}
@@ -112,7 +107,6 @@ APP_HTML = r"""<!DOCTYPE html>
   .pbtn.danger:hover{background:#7f1d1d;border-color:#dc2626;color:#fecaca}
   .prow{display:flex;gap:5px}
   .prow .pbtn{flex:1;justify-content:center;text-align:center}
-
   input[type="color"]{width:100%;height:28px;border:none;background:transparent;
     cursor:pointer;border-radius:6px}
   input[type="range"]{width:100%;accent-color:#6366f1}
@@ -125,20 +119,17 @@ APP_HTML = r"""<!DOCTYPE html>
   label{font-size:.68rem;color:#8b9dc3;display:flex;
     justify-content:space-between;align-items:center;margin:5px 0 2px}
   label span.val{color:#a5b4fc;font-weight:600}
-
   .swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-top:4px}
   .swatch{aspect-ratio:1;border-radius:4px;cursor:pointer;
     border:2px solid transparent;transition:.1s}
   .swatch:hover{transform:scale(1.08)}
   .swatch.sel{border-color:#fff;box-shadow:0 0 0 2px #6366f1}
-
   #stage{flex:1;position:relative;overflow:hidden;
     background:repeating-conic-gradient(#0a1020 0 25%,#0b1220 0 50%) 50%/24px 24px;
     padding-top:44px}
   #canvas-holder{position:absolute;top:44px;left:0;transform-origin:0 0;
     will-change:transform}
-
-  #canvastools{position:absolute;bottom:14px;right:300px;display:flex;gap:6px;
+  #canvastools{position:absolute;bottom:14px;right:310px;display:flex;gap:6px;
     background:rgba(19,26,43,.92);backdrop-filter:blur(12px);
     border:1px solid #2a3a5c;padding:5px;border-radius:10px;z-index:20;
     box-shadow:0 8px 24px rgba(0,0,0,.4)}
@@ -150,7 +141,6 @@ APP_HTML = r"""<!DOCTYPE html>
   #zoom-lvl{min-width:52px;justify-content:center;color:#a5b4fc;
     font-family:ui-monospace,monospace;font-size:.7rem;
     display:flex;align-items:center;padding:0 6px}
-
   #hud{position:absolute;bottom:14px;left:64px;display:flex;gap:6px;
     align-items:center;z-index:10}
   #hud .chip{background:rgba(19,26,43,.92);backdrop-filter:blur(12px);
@@ -158,7 +148,7 @@ APP_HTML = r"""<!DOCTYPE html>
     font-size:.68rem;color:#a5b4fc;font-family:ui-monospace,monospace}
   #hud .chip.warn{border-color:#f59e0b;color:#fbbf24}
   #hud .chip.err{border-color:#dc2626;color:#fca5a5}
-
+  #hud .chip.ok{border-color:#22c55e;color:#86efac}
   #toast{position:fixed;bottom:24px;left:50%;
     transform:translateX(-50%) translateY(100px);
     background:#1c2640;border:1px solid #3b4d75;color:#e2e8f0;
@@ -168,13 +158,11 @@ APP_HTML = r"""<!DOCTYPE html>
   #toast.show{transform:translateX(-50%) translateY(0)}
   #toast.err{background:#3b1212;border-color:#7f1d1d;color:#fecaca}
   #toast.warn{background:#3b2a12;border-color:#b45309;color:#fde68a}
-
+  #toast.ok{background:#0f2417;border-color:#15803d;color:#bbf7d0}
   #measure{position:fixed;background:#1c2640;border:1px solid #6366f1;
     padding:4px 8px;border-radius:6px;font-size:.72rem;color:#c7d2fe;
     font-family:ui-monospace,monospace;pointer-events:none;z-index:200;
     display:none}
-
-  /* Selection-aware visibility */
   .sel-only{display:none}
   .sel-only.on{display:block}
   .empty-note{color:#7c8db5;font-size:.72rem;line-height:1.5;
@@ -190,22 +178,25 @@ APP_HTML = r"""<!DOCTYPE html>
 </div>
 
 <div id="app" style="display:none">
-
   <div id="topstrip">
     <div class="logo">📡 Telecom Site Studio</div>
     <div class="sep"></div>
     <button id="tb-new" title="New site plan">🆕 New</button>
     <button id="tb-open" title="Open image">📁 Open Image</button>
-    <button id="tb-paste" title="Paste">📋 Paste</button>
+    <button id="tb-paste" title="Paste image">📋 Paste Img</button>
     <button id="tb-load-json" title="Load layout">📂 Load Layout</button>
     <button id="tb-save-json" title="Save layout">💾 Save Layout</button>
+    <div class="sep"></div>
+    <button id="tb-copy" title="Copy (Ctrl+C)">📄 Copy</button>
+    <button id="tb-paste-obj" title="Paste (Ctrl+V)">📋 Paste</button>
+    <button id="tb-cut" title="Cut (Ctrl+X)">✂️ Cut</button>
     <div class="sep"></div>
     <button id="tb-undo" title="Undo Ctrl+Z">↩️</button>
     <button id="tb-redo" title="Redo Ctrl+Y">↪️</button>
     <div class="sep"></div>
     <button id="tb-zoom-fit" title="Fit (F)">🎯 Fit</button>
-    <button id="tb-zoom-in" title="Zoom in">＋</button>
-    <button id="tb-zoom-out" title="Zoom out">－</button>
+    <button id="tb-zoom-in">＋</button>
+    <button id="tb-zoom-out">－</button>
     <div class="sep"></div>
     <button id="tb-export-png" title="Export PNG">🖼️ PNG</button>
     <button id="tb-print" title="Print (A3)">🖨️ Print</button>
@@ -215,45 +206,21 @@ APP_HTML = r"""<!DOCTYPE html>
   </div>
 
   <aside id="sidebar">
-    <button class="tbtn active" data-tool="select">
-      <span>🖱️</span><span class="tip">Select / Move (V)</span>
-    </button>
-    <button class="tbtn" data-tool="pan">
-      <span>✋</span><span class="tip">Pan view (H)</span>
-    </button>
+    <button class="tbtn active" data-tool="select"><span>🖱️</span><span class="tip">Select / Move (V)</span></button>
+    <button class="tbtn" data-tool="pan"><span>✋</span><span class="tip">Pan (H)</span></button>
     <div class="sep"></div>
-    <button class="tbtn" id="tbtn-stencil">
-      <span>📦</span><span class="tip">Telecom Stencils</span>
-    </button>
-    <button class="tbtn" data-tool="pen">
-      <span>✏️</span><span class="tip">Freehand (P)</span>
-    </button>
-    <button class="tbtn" data-tool="line">
-      <span>📏</span><span class="tip">Line (L)</span>
-    </button>
-    <button class="tbtn" data-tool="polyline">
-      <span>↗️</span><span class="tip">Polyline — Enter to finish</span>
-    </button>
-    <button class="tbtn" data-tool="rect">
-      <span>⬛</span><span class="tip">Rectangle (R)</span>
-    </button>
-    <button class="tbtn" data-tool="circle">
-      <span>⭕</span><span class="tip">Circle (C)</span>
-    </button>
-    <button class="tbtn" data-tool="text">
-      <span>🔤</span><span class="tip">Text (T)</span>
-    </button>
+    <button class="tbtn" id="tbtn-stencil"><span>📦</span><span class="tip">Stencils</span></button>
+    <button class="tbtn" data-tool="pen"><span>✏️</span><span class="tip">Freehand (P)</span></button>
+    <button class="tbtn" data-tool="line"><span>📏</span><span class="tip">Line (L)</span></button>
+    <button class="tbtn" data-tool="polyline"><span>↗️</span><span class="tip">Polyline (Enter)</span></button>
+    <button class="tbtn" data-tool="rect"><span>⬛</span><span class="tip">Rectangle (R)</span></button>
+    <button class="tbtn" data-tool="circle"><span>⭕</span><span class="tip">Circle (C)</span></button>
+    <button class="tbtn" data-tool="text"><span>🔤</span><span class="tip">Text (T)</span></button>
     <div class="sep"></div>
-    <button class="tbtn" data-tool="dim-h">
-      <span>↔️</span><span class="tip">Horizontal dimension</span>
-    </button>
-    <button class="tbtn" data-tool="dim-v">
-      <span>↕️</span><span class="tip">Vertical dimension</span>
-    </button>
+    <button class="tbtn" data-tool="dim-h"><span>↔️</span><span class="tip">H-Dimension</span></button>
+    <button class="tbtn" data-tool="dim-v"><span>↕️</span><span class="tip">V-Dimension</span></button>
     <div class="sep"></div>
-    <button class="tbtn" data-tool="erase">
-      <span>🧹</span><span class="tip">Eraser (E)</span>
-    </button>
+    <button class="tbtn" data-tool="erase"><span>🧹</span><span class="tip">Eraser (E)</span></button>
   </aside>
 
   <div id="stencil-panel">
@@ -262,13 +229,11 @@ APP_HTML = r"""<!DOCTYPE html>
       <div class="stencil" data-stencil="gate_2door"><span>🚪</span>Gate (2-Door)</div>
       <div class="stencil" data-stencil="fence"><span>🔲</span>Boundary Fence</div>
     </div>
-
     <h4>🏢 Cabin / Shelter</h4>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="cabin"><span>🏠</span>Shelter</div>
       <div class="stencil" data-stencil="stairs"><span>🪜</span>Cement Stairs</div>
     </div>
-
     <h4>🗄️ Cabinets</h4>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="odc"><span>🗄️</span>ODC</div>
@@ -276,7 +241,6 @@ APP_HTML = r"""<!DOCTYPE html>
       <div class="stencil" data-stencil="cab2"><span>🗃️</span>2-Bay</div>
       <div class="stencil" data-stencil="cab3"><span>🗃️</span>3-Bay</div>
     </div>
-
     <h4>📡 Tower</h4>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="tower4"><span>📡</span>4-Leg Tower</div>
@@ -284,7 +248,6 @@ APP_HTML = r"""<!DOCTYPE html>
       <div class="stencil" data-stencil="towerfoot"><span>🔩</span>Footing</div>
       <div class="stencil" data-stencil="guy"><span>⚓</span>Guy Anchor</div>
     </div>
-
     <h4>⚡ Power</h4>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="genset"><span>🔌</span>Generator+Pad</div>
@@ -292,19 +255,23 @@ APP_HTML = r"""<!DOCTYPE html>
       <div class="stencil" data-stencil="transformer"><span>⚡</span>Transformer</div>
       <div class="stencil" data-stencil="battery"><span>🔋</span>Battery Bank</div>
     </div>
-
+    <h4>🛠️ Pads & Bases</h4>
+    <div class="stencil-grid">
+      <div class="stencil" data-stencil="basepad"><span>⬛</span>Cement Basepad</div>
+      <div class="stencil" data-stencil="basepad_gen"><span>🟧</span>Gen Basepad</div>
+      <div class="stencil" data-stencil="basepad_tx"><span>🟨</span>TX Basepad</div>
+      <div class="stencil" data-stencil="basepad_ac"><span>🟦</span>AC Basepad</div>
+    </div>
     <h4>❄️ Cooling</h4>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="aircon"><span>❄️</span>Air Conditioner</div>
     </div>
-
     <h4>🛣️ Cable Infrastructure</h4>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="cabletray"><span>🛤️</span>Cable Tray</div>
       <div class="stencil" data-stencil="openrack"><span>🗂️</span>Open Rack</div>
       <div class="stencil" data-stencil="hframe"><span>🪜</span>H-Frame</div>
     </div>
-
     <h4>🌱 Site Surface</h4>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="grass"><span>🌱</span>Grass Area</div>
@@ -312,7 +279,6 @@ APP_HTML = r"""<!DOCTYPE html>
       <div class="stencil" data-stencil="gravel"><span>🪨</span>Gravel Pad</div>
       <div class="stencil" data-stencil="wall"><span>🧱</span>Wall</div>
     </div>
-
     <h4>🔤 Labels</h4>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="label_equipment"><span>🏷️</span>Equip Label</div>
@@ -324,7 +290,7 @@ APP_HTML = r"""<!DOCTYPE html>
 
   <aside id="props">
     <h3>🎨 Draw Style</h3>
-    <div class="psection" id="draw-style">
+    <div class="psection">
       <label>Palette</label>
       <div class="swatches" id="palette"></div>
       <label>Stroke color</label>
@@ -339,13 +305,12 @@ APP_HTML = r"""<!DOCTYPE html>
     </div>
 
     <h3>🔤 Text Tool</h3>
-    <div class="psection" id="text-tool">
+    <div class="psection">
       <input type="text" id="text-value" value="LABEL" maxlength="80">
       <label>Font size <span class="val" id="fs-val">16px</span></label>
       <input type="range" id="font-size" min="8" max="72" value="16">
     </div>
 
-    <!-- ★ LIVE SELECTION PROPERTIES -->
     <h3>⚙️ Selected Object</h3>
     <div class="psection" id="sel-empty">
       <div class="empty-note">
@@ -361,17 +326,14 @@ APP_HTML = r"""<!DOCTYPE html>
           color:#66748f;font-size:.65rem"></span>
       </div>
 
-      <!-- Common: stroke color -->
       <div class="sel-only" id="row-stroke">
         <label>Stroke color</label>
         <input type="color" id="sel-stroke-color">
       </div>
-      <!-- Common: stroke width -->
       <div class="sel-only" id="row-strokew">
         <label>Stroke width <span class="val" id="sel-sw-val">2px</span></label>
         <input type="range" id="sel-stroke-width" min="0" max="20" value="2">
       </div>
-      <!-- Fill -->
       <div class="sel-only" id="row-fill">
         <label><span>Fill enabled</span>
           <input type="checkbox" id="sel-fill-enabled" style="width:auto"></label>
@@ -379,34 +341,28 @@ APP_HTML = r"""<!DOCTYPE html>
         <label>Fill opacity <span class="val" id="sel-fillop-val">40%</span></label>
         <input type="range" id="sel-fill-opacity" min="0" max="100" value="40">
       </div>
-      <!-- Text: content -->
       <div class="sel-only" id="row-text">
         <label>Text content</label>
         <textarea id="sel-text" rows="2"></textarea>
       </div>
-      <!-- Text: font size -->
       <div class="sel-only" id="row-fontsize">
         <label>Font size <span class="val" id="sel-fs-val">16px</span></label>
         <input type="range" id="sel-font-size" min="6" max="120" value="16">
       </div>
-      <!-- Text: font weight + style -->
       <div class="sel-only" id="row-fontstyle">
         <label><span>Bold</span>
           <input type="checkbox" id="sel-bold" style="width:auto"></label>
         <label><span>Italic</span>
           <input type="checkbox" id="sel-italic" style="width:auto"></label>
       </div>
-      <!-- Opacity -->
       <div class="sel-only" id="row-opacity">
         <label>Opacity <span class="val" id="sel-op-val">100%</span></label>
         <input type="range" id="sel-opacity" min="5" max="100" value="100">
       </div>
-      <!-- Angle -->
       <div class="sel-only" id="row-angle">
         <label>Rotation <span class="val" id="sel-angle-val">0°</span></label>
         <input type="range" id="sel-angle" min="-180" max="180" value="0">
       </div>
-      <!-- Position + Size -->
       <div class="sel-only" id="row-geom">
         <label>Position & Size</label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
@@ -416,23 +372,22 @@ APP_HTML = r"""<!DOCTYPE html>
           <input type="number" id="sel-h" placeholder="H" step="1">
         </div>
         <div class="prow" style="margin-top:5px">
-          <button class="pbtn" id="sel-lock-ratio" title="Lock ratio">
-            🔒 <span>Ratio</span>
-          </button>
-          <button class="pbtn" id="sel-reset-size" title="Reset to original">
-            ↺ <span>Reset</span>
-          </button>
+          <button class="pbtn" id="sel-lock-ratio">🔒 <span>Ratio</span></button>
+          <button class="pbtn" id="sel-reset-size">↺ <span>Reset</span></button>
         </div>
       </div>
-      <!-- Layer order + actions -->
       <div class="sel-only" id="row-actions">
         <div class="prow" style="margin-top:6px">
           <button class="pbtn" id="sel-front">⬆ <span>Front</span></button>
           <button class="pbtn" id="sel-back">⬇ <span>Back</span></button>
         </div>
         <div class="prow">
-          <button class="pbtn" id="sel-dup">📋 <span>Copy</span></button>
-          <button class="pbtn" id="sel-del">🗑️ <span>Delete</span></button>
+          <button class="pbtn" id="sel-copy">📄 <span>Copy</span></button>
+          <button class="pbtn" id="sel-paste">📋 <span>Paste</span></button>
+        </div>
+        <div class="prow">
+          <button class="pbtn" id="sel-dup">📑 <span>Duplicate</span></button>
+          <button class="pbtn danger" id="sel-del">🗑️ <span>Delete</span></button>
         </div>
       </div>
     </div>
@@ -475,19 +430,19 @@ APP_HTML = r"""<!DOCTYPE html>
 
     <h3>❓ Help</h3>
     <div class="psection" style="font-size:.68rem;color:#8b9dc3;line-height:1.7">
+      <div><b style="color:#a5b4fc">Copy:</b> Ctrl+C</div>
+      <div><b style="color:#a5b4fc">Paste:</b> Ctrl+V (offsets +20px)</div>
+      <div><b style="color:#a5b4fc">Cut:</b> Ctrl+X</div>
+      <div><b style="color:#a5b4fc">Duplicate:</b> Ctrl+D or Alt+drag</div>
       <div><b style="color:#a5b4fc">Zoom:</b> Ctrl + scroll</div>
       <div><b style="color:#a5b4fc">Pan:</b> Space + drag or H</div>
       <div><b style="color:#a5b4fc">Fit:</b> F</div>
-      <div><b style="color:#a5b4fc">Duplicate:</b> Alt + drag</div>
       <div><b style="color:#a5b4fc">Finish polyline:</b> Enter</div>
-      <div><b style="color:#a5b4fc">Edit label text:</b> double-click it</div>
-      <div><b style="color:#a5b4fc">Diag:</b> Ctrl+Shift+D</div>
     </div>
   </aside>
 
   <main id="stage">
     <div id="canvas-holder"><canvas id="c"></canvas></div>
-
     <div id="canvastools">
       <button id="ct-zoom-fit" title="Fit (F)">🎯</button>
       <button id="ct-zoom-out">－</button>
@@ -496,12 +451,10 @@ APP_HTML = r"""<!DOCTYPE html>
       <button id="ct-toggle-ortho" title="Orthogonal mode (Shift)">📐 Ortho</button>
       <button id="ct-toggle-dim" title="Auto-dimension labels" class="active">📏 Dims</button>
     </div>
-
     <div id="hud">
       <div class="chip" id="hud-xy">x: 0  y: 0</div>
       <div class="chip" id="hud-count">0 objects</div>
     </div>
-
     <div id="measure"></div>
     <div id="toast"></div>
   </main>
@@ -574,8 +527,8 @@ function loadFabric(i = 0){
    2. STORAGE
    ===================================================================== */
 const Storage = {
-  KEY: 'telecom_site_v3',
-  KEY_CTR: 'telecom_site_ctr_v3',
+  KEY: 'telecom_site_v4',
+  KEY_CTR: 'telecom_site_ctr_v4',
   available(){
     try { const k='__t'+Math.random(); localStorage.setItem(k,'1');
           localStorage.removeItem(k); return true; } catch(_){ return false; }
@@ -600,7 +553,7 @@ const Storage = {
 let canvas;
 let currentTool = 'select';
 let pendingStencil = null;
-let pendingLabelId = null;      // for custom label stencil
+let pendingLabelId = null;
 let drawing = false, startPt = null, activeShape = null, drawMoved = false;
 let polyPoints = [], polyPreview = null;
 let undoStack = [], redoStack = [];
@@ -614,6 +567,8 @@ let showDims = true;
 let fileName = 'Untitled Site Plan';
 let uidCounter = 1;
 let lockRatio = false;
+let clipboard = [];     // ★ internal clipboard for copy/paste
+let clipboardOffset = 0;
 const CW = 1600, CH = 1000;
 const M2PX = 20;
 
@@ -621,15 +576,13 @@ const PALETTE = ['#334155','#64748b','#94a3b8','#cbd5e1','#f8fafc','#000000',
                  '#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2','#2563eb',
                  '#7c3aed','#db2777','#a16207','#0f766e','#475569','#a3a3a3'];
 
-/* ★ FABRIC custom props so they survive serialization */
 const CUSTOM_PROPS = ['selectable','evented','isBackground',
                       '_isCable','_isAnnotation','_isDimension',
                       '_stencilLabel','_isStencilLabel','_labelKind',
-                      '_uid','_originalWidth','_originalHeight',
-                      '_boundTo'];
+                      '_uid','_originalWidth','_originalHeight','_boundTo'];
 
 /* =====================================================================
-   4. FABRIC PROTOTYPE — tight selection boxes
+   4. FABRIC PROTOTYPE
    ===================================================================== */
 function tightenSelectionBoxes(){
   fabric.Object.prototype.set({
@@ -647,7 +600,7 @@ function tightenSelectionBoxes(){
 }
 
 /* =====================================================================
-   5. SYMBOL PRIMITIVES + HELPERS
+   5. SYMBOL PRIMITIVES
    ===================================================================== */
 function uid(){ return 'o' + (uidCounter++); }
 function mkLine(x1,y1,x2,y2, opt){
@@ -709,8 +662,6 @@ function hatchRect(x,y,w,h, opt){
   }
   return g;
 }
-
-/* ★ DETACHED LABEL — created as a separate object next to the group */
 function makeDetachedLabel(text, x, y, opt){
   opt = opt || {};
   const lbl = new fabric.IText(text, {
@@ -731,11 +682,10 @@ function makeDetachedLabel(text, x, y, opt){
 }
 
 /* =====================================================================
-   6. ★ STENCIL LIBRARY (labels are detached, not grouped)
+   6. ★ STENCIL LIBRARY
    ===================================================================== */
 const STENCILS = {
 
-  /* ---------- GATE & FENCE ---------- */
   gate_2door(){
     const W = 4*M2PX, H = 4;
     const parts = [];
@@ -752,9 +702,8 @@ const STENCILS = {
     parts.push(new fabric.Path(
       `M ${W-H} ${H/2 - W*0.45} A ${W*0.45} ${W*0.45} 0 0 0 ${W-H - W*0.45} ${H/2}`,
       { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[3,2], selectable:false }));
-    const grp = mkGroup(parts, 'Gate');
-    return { group: grp, labels: [
-      { text:'GATE 2-DOOR', x: W/2, y: -18, kind:'equipment' }
+    return { group: mkGroup(parts, 'Gate'), labels: [
+      { text:'GATE 2-DOOR', x: 0, y: -18, kind:'equipment' }
     ]};
   },
   fence(){
@@ -770,7 +719,6 @@ const STENCILS = {
     return { group: mkGroup(parts, 'Fence'), labels: [] };
   },
 
-  /* ---------- CABIN / SHELTER ---------- */
   cabin(){
     const W = 4*M2PX, H = 3*M2PX;
     const parts = [];
@@ -785,8 +733,7 @@ const STENCILS = {
     parts.push(mkText('AC', 14, 9, 7, { fill:'#1e3a8a', selectable:false }));
     parts.push(mkRect(W-24, H-14, 18, 8, { fill:'#fef3c7', stroke:'#a16207' }));
     parts.push(mkText('ENTRY', W-24, H-6, 6, { fill:'#7c2d12', selectable:false }));
-    const grp = mkGroup(parts, 'Shelter');
-    return { group: grp, labels: [
+    return { group: mkGroup(parts, 'Shelter'), labels: [
       { text:'SHELTER', x: 0, y: -18, kind:'equipment' },
       { text:`${(W/M2PX).toFixed(1)}×${(H/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
     ]};
@@ -805,7 +752,6 @@ const STENCILS = {
     ]};
   },
 
-  /* ---------- CABINETS ---------- */
   odc(){
     const W = 1.2*M2PX, H = 2.2*M2PX;
     const parts = [
@@ -816,8 +762,7 @@ const STENCILS = {
       mkCircle(2, H-4, 2, { fill:'#64748b', stroke:'none' }),
       mkCircle(W-4, H-4, 2, { fill:'#64748b', stroke:'none' }),
     ];
-    const grp = mkGroup(parts, 'ODC');
-    return { group: grp, labels: [
+    return { group: mkGroup(parts, 'ODC'), labels: [
       { text:'ODC', x: 0, y: -16, kind:'equipment' }
     ]};
   },
@@ -825,7 +770,6 @@ const STENCILS = {
   cab2(){ return cabGeneric(2, '2-Bay'); },
   cab3(){ return cabGeneric(3, '3-Bay'); },
 
-  /* ---------- TOWER ---------- */
   tower4(){
     const S = 4*M2PX;
     const parts = [];
@@ -844,8 +788,7 @@ const STENCILS = {
     parts.push(mkLine(0, 0, S, S, { stroke:'#0f172a', strokeWidth:0.8, strokeDashArray:[4,3] }));
     parts.push(mkLine(S, 0, 0, S, { stroke:'#0f172a', strokeWidth:0.8, strokeDashArray:[4,3] }));
     parts.push(mkCircle(S/2, S/2, 8, { fill:'#334155', stroke:'#0f172a', strokeWidth:1.5 }));
-    const grp = mkGroup(parts, '4-Leg Tower');
-    return { group: grp, labels: [
+    return { group: mkGroup(parts, '4-Leg Tower'), labels: [
       { text:'4-LEG TOWER', x: 0, y: -22, kind:'equipment' },
       { text:`${(S/M2PX).toFixed(1)}m × ${(S/M2PX).toFixed(1)}m`, x: 0, y: S + 6, kind:'dim' }
     ]};
@@ -869,8 +812,7 @@ const STENCILS = {
     parts.push(mkLine(C.x, C.y, (A.x+B.x)/2, (A.y+B.y)/2,
       { stroke:'#0f172a', strokeWidth:0.8, strokeDashArray:[4,3] }));
     parts.push(mkCircle(S/2, h/2 + 4, 7, { fill:'#334155', stroke:'#0f172a' }));
-    const grp = mkGroup(parts, '3-Leg Tower');
-    return { group: grp, labels: [
+    return { group: mkGroup(parts, '3-Leg Tower'), labels: [
       { text:'3-LEG TOWER', x: 0, y: -22, kind:'equipment' }
     ]};
   },
@@ -902,7 +844,6 @@ const STENCILS = {
     ]};
   },
 
-  /* ---------- POWER ---------- */
   genset(){
     const padW = 4*M2PX, padH = 2.4*M2PX;
     const genW = 3.4*M2PX, genH = 1.6*M2PX;
@@ -923,8 +864,7 @@ const STENCILS = {
       { fill:'#94a3b8', stroke:'#334155', strokeWidth:1 }));
     parts.push(mkText('GENSET', gx + genW/2 - 24, gy + genH/2 - 4, 10,
       { fontWeight:'700', fill:'#7c2d12', selectable:false }));
-    const grp = mkGroup(parts, 'Generator');
-    return { group: grp, labels: [
+    return { group: mkGroup(parts, 'Generator'), labels: [
       { text:'GENERATOR + PAD', x: 0, y: -22, kind:'equipment' },
       { text:`${(padW/M2PX).toFixed(1)}×${(padH/M2PX).toFixed(1)}m`,
         x: 0, y: padH + 6, kind:'dim' }
@@ -942,8 +882,7 @@ const STENCILS = {
     parts.push(mkCircle(R, R + R*0.55, R*0.12, { fill:'#334155', stroke:'none' }));
     parts.push(mkText('FUEL', R - 16, R - 4, 9,
       { fontWeight:'700', fill:'#7f1d1d', selectable:false }));
-    const grp = mkGroup(parts, 'Fuel Tank');
-    return { group: grp, labels: [
+    return { group: mkGroup(parts, 'Fuel Tank'), labels: [
       { text:'FUEL TANK', x: 0, y: -R*1.5 - 6, kind:'equipment' },
       { text:`Ø${(2*R/M2PX).toFixed(1)}m`, x: 0, y: R*1.5 + 6, kind:'dim' }
     ]};
@@ -968,8 +907,7 @@ const STENCILS = {
     }
     parts.push(mkText('TX', W/2 - 8, H/2 - 4, 9,
       { fontWeight:'700', fill:'#78350f', selectable:false }));
-    const grp = mkGroup(parts, 'Transformer');
-    return { group: grp, labels: [
+    return { group: mkGroup(parts, 'Transformer'), labels: [
       { text:'TRANSFORMER', x: 0, y: -22, kind:'equipment' },
       { text:'HV', x: -20, y: -16, kind:'mark', fill:'#dc2626', fontSize:8 },
       { text:'LV', x: -20, y: H + 10, kind:'mark', fill:'#2563eb', fontSize:8 }
@@ -992,7 +930,74 @@ const STENCILS = {
     ]};
   },
 
-  /* ---------- COOLING ---------- */
+  /* ★ NEW: CEMENT BASEPADS */
+  basepad(){
+    const W = 3*M2PX, H = 3*M2PX;
+    const parts = [];
+    parts.push(...hatchRect(0, 0, W, H, {
+      spacing: 10, hatch:'#94a3b8',
+      fill:'rgba(203,213,225,0.65)',
+      stroke:'#334155', strokeWidth: 2
+    }));
+    // Corner markers
+    const c = 10;
+    parts.push(mkLine(0, 0, c, 0, { stroke:'#0f172a', strokeWidth:2.5 }));
+    parts.push(mkLine(0, 0, 0, c, { stroke:'#0f172a', strokeWidth:2.5 }));
+    parts.push(mkLine(W, 0, W-c, 0, { stroke:'#0f172a', strokeWidth:2.5 }));
+    parts.push(mkLine(W, 0, W, c, { stroke:'#0f172a', strokeWidth:2.5 }));
+    parts.push(mkLine(0, H, c, H, { stroke:'#0f172a', strokeWidth:2.5 }));
+    parts.push(mkLine(0, H, 0, H-c, { stroke:'#0f172a', strokeWidth:2.5 }));
+    parts.push(mkLine(W, H, W-c, H, { stroke:'#0f172a', strokeWidth:2.5 }));
+    parts.push(mkLine(W, H, W, H-c, { stroke:'#0f172a', strokeWidth:2.5 }));
+    return { group: mkGroup(parts, 'Cement Basepad'), labels: [
+      { text:'CEMENT BASEPAD', x: 0, y: -20, kind:'equipment' },
+      { text:`${(W/M2PX).toFixed(1)} × ${(H/M2PX).toFixed(1)} m`,
+        x: 0, y: H + 6, kind:'dim' }
+    ]};
+  },
+  basepad_gen(){
+    const W = 4*M2PX, H = 2.6*M2PX;
+    const parts = [];
+    parts.push(...hatchRect(0, 0, W, H, {
+      spacing: 9, hatch:'#94a3b8',
+      fill:'rgba(254,243,199,0.55)',
+      stroke:'#78350f', strokeWidth: 2
+    }));
+    parts.push(mkText('GEN PAD', W/2 - 30, H/2 - 4, 9,
+      { fontWeight:'700', fill:'#78350f', selectable:false }));
+    return { group: mkGroup(parts, 'Gen Basepad'), labels: [
+      { text:'GENERATOR BASEPAD', x: 0, y: -20, kind:'equipment' },
+      { text:`${(W/M2PX).toFixed(1)}×${(H/M2PX).toFixed(1)}m`,
+        x: 0, y: H + 6, kind:'dim' }
+    ]};
+  },
+  basepad_tx(){
+    const W = 2.2*M2PX, H = 2.2*M2PX;
+    const parts = [];
+    parts.push(...hatchRect(0, 0, W, H, {
+      spacing: 8, hatch:'#b45309',
+      fill:'rgba(254,243,199,0.65)',
+      stroke:'#78350f', strokeWidth: 2
+    }));
+    parts.push(mkText('TX PAD', W/2 - 24, H/2 - 4, 9,
+      { fontWeight:'700', fill:'#78350f', selectable:false }));
+    return { group: mkGroup(parts, 'TX Basepad'), labels: [
+      { text:'TRANSFORMER BASEPAD', x: 0, y: -20, kind:'equipment' }
+    ]};
+  },
+  basepad_ac(){
+    const W = 1.4*M2PX, H = 1*M2PX;
+    const parts = [];
+    parts.push(...hatchRect(0, 0, W, H, {
+      spacing: 6, hatch:'#0ea5e9',
+      fill:'rgba(224,242,254,0.7)',
+      stroke:'#0369a1', strokeWidth: 1.5
+    }));
+    return { group: mkGroup(parts, 'AC Basepad'), labels: [
+      { text:'AC BASEPAD', x: 0, y: -16, kind:'equipment' }
+    ]};
+  },
+
   aircon(){
     const W = 1.0*M2PX, H = 0.6*M2PX;
     const cx = W*0.65, cy = H/2, r = Math.min(W,H)*0.35;
@@ -1014,7 +1019,6 @@ const STENCILS = {
     ]};
   },
 
-  /* ---------- CABLE ---------- */
   cabletray(){
     const W = 4*M2PX, H = 0.4*M2PX;
     const parts = [
@@ -1024,8 +1028,7 @@ const STENCILS = {
     for (let x = 4; x < W; x += 6){
       parts.push(mkLine(x, 1, x, H-1, { stroke:'#475569', strokeWidth:0.8 }));
     }
-    const grp = mkGroup(parts, 'Cable Tray');
-    return { group: grp, labels: [
+    return { group: mkGroup(parts, 'Cable Tray'), labels: [
       { text:'CABLE TRAY', x: 0, y: -14, kind:'equipment' },
       { text:`${(W/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
     ]};
@@ -1060,7 +1063,6 @@ const STENCILS = {
     ]};
   },
 
-  /* ---------- SURFACE ---------- */
   grass(){
     const W = 8*M2PX, H = 6*M2PX;
     const parts = [
@@ -1138,7 +1140,6 @@ function cabGeneric(bays, name){
   ]};
 }
 
-/* ★ Label stencils — pure text, no shape attached */
 const LABEL_STENCILS = {
   label_equipment: { text: 'EQUIPMENT', kind:'equipment', fontSize: 12, fill: '#0f172a' },
   label_cable:     { text: 'C-01', kind:'cable', fontSize: 11, fill: '#dc2626',
@@ -1179,6 +1180,11 @@ function initCanvas(){
   canvas.on('selection:created', () => { refreshPanels(); syncSelectionPanel(); });
   canvas.on('selection:updated', () => { refreshPanels(); syncSelectionPanel(); });
   canvas.on('selection:cleared', () => { refreshPanels(); syncSelectionPanel(); });
+
+  // ★ Live refresh of the panel while dragging/resizing
+  canvas.on('object:moving',  () => syncSelectionPanelLight());
+  canvas.on('object:scaling', () => syncSelectionPanelLight());
+  canvas.on('object:rotating',() => syncSelectionPanelLight());
 
   canvas.on('mouse:dblclick', opt => {
     const t = opt.target;
@@ -1271,7 +1277,8 @@ function onDown(opt){
     if (opt.target && opt.e.altKey && !opt.target.isBackground){
       const orig = opt.target;
       orig.clone(c => {
-        c.set({ left:orig.left, top:orig.top, evented:true, selectable:true,
+        c.set({ left:(orig.left||0)+20, top:(orig.top||0)+20,
+                evented:true, selectable:true,
                 perPixelTargetFind:true, padding:2, _uid: uid() });
         canvas.add(c); canvas.setActiveObject(c); canvas.renderAll();
         toast('Duplicated');
@@ -1489,7 +1496,7 @@ function addDimensionLabel(line){
 }
 
 /* =====================================================================
-   11. ★ STENCIL PLACEMENT (with DETACHED LABELS)
+   11. STENCIL PLACEMENT
    ===================================================================== */
 function placeStencil(id, x, y){
   const fn = STENCILS[id];
@@ -1502,11 +1509,9 @@ function placeStencil(id, x, y){
     });
     canvas.add(group);
 
-    // Place detached labels around the object — each editable/deletable individually
     if (labels && labels.length){
       const b = group.getBoundingRect(true, true);
-      labels.forEach((L, i) => {
-        // Compute absolute position relative to group's bounding box
+      labels.forEach((L) => {
         const lx = b.left + b.width/2 + L.x;
         const ly = b.top + (L.y !== undefined ? L.y : 0) + (L.y < 0 ? 0 : b.height);
         const opt = Object.assign({ boundTo: group._uid, kind: L.kind }, L);
@@ -1574,8 +1579,6 @@ function finalizePolyline(){
   polyPreview = null; polyPoints = [];
   toast('Polyline finished');
 }
-
-/* Stencil panel */
 $('tbtn-stencil').onclick = () => $('stencil-panel').classList.toggle('open');
 document.querySelectorAll('.stencil').forEach(el => {
   el.onclick = () => {
@@ -1602,23 +1605,27 @@ function hexWithAlpha(hex, alpha){
 }
 function rgbaToHex(rgba){
   if (!rgba) return '#000000';
-  if (rgba[0] === '#') return rgba.slice(0,7);
+  if (typeof rgba !== 'string') return '#000000';
+  if (rgba[0] === '#'){
+    let h = rgba.slice(1);
+    if (h.length === 3) h = h.split('').map(c=>c+c).join('');
+    return '#' + h.slice(0,6);
+  }
   const m = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
   if (!m) return '#000000';
   return '#' + [m[1],m[2],m[3]].map(v => (+v).toString(16).padStart(2,'0')).join('');
 }
 function hexAlphaOf(rgba){
-  if (!rgba || rgba[0] === '#') return 1;
+  if (!rgba || typeof rgba !== 'string') return 1;
+  if (rgba[0] === '#') return 1;
   const m = rgba.match(/rgba\([^)]+,\s*([\d.]+)\s*\)/);
   return m ? parseFloat(m[1]) : 1;
 }
 
 /* =====================================================================
-   14. ★ LIVE SELECTION PANEL
+   14. ★ LIVE SELECTION PANEL (FIXED)
    ===================================================================== */
-const selFieldIds = ['row-stroke','row-strokew','row-fill','row-text',
-                     'row-fontsize','row-fontstyle','row-opacity','row-angle',
-                     'row-geom','row-actions'];
+let suppressPanelSync = false;   // ← prevents feedback loop when panel drives canvas
 
 function showSelField(id, on){
   const el = $(id);
@@ -1626,7 +1633,27 @@ function showSelField(id, on){
   el.classList.toggle('on', !!on);
 }
 
+function syncSelectionPanelLight(){
+  // Fast refresh of X/Y/W/H/angle only while dragging
+  const o = canvas.getActiveObject();
+  if (!o) return;
+  if ($('sel-x') !== document.activeElement)
+    $('sel-x').value = Math.round(o.left || 0);
+  if ($('sel-y') !== document.activeElement)
+    $('sel-y').value = Math.round(o.top || 0);
+  if ($('sel-w') !== document.activeElement)
+    $('sel-w').value = Math.round((o.width || 0) * (o.scaleX || 1));
+  if ($('sel-h') !== document.activeElement)
+    $('sel-h').value = Math.round((o.height || 0) * (o.scaleY || 1));
+  if ($('sel-angle') !== document.activeElement){
+    const ang = Math.round(o.angle || 0);
+    $('sel-angle').value = ang;
+    $('sel-angle-val').textContent = ang + '°';
+  }
+}
+
 function syncSelectionPanel(){
+  if (suppressPanelSync) return;
   const objs = canvas.getActiveObjects();
   const o = objs[0];
   const multi = objs.length > 1;
@@ -1648,226 +1675,295 @@ function syncSelectionPanel(){
   $('sel-type').textContent = typeLabel;
   $('sel-uid').textContent = o._uid || '';
 
-  const isText  = ['i-text','text','textbox'].includes(o.type);
-  const isLine  = o.type === 'line' || o.type === 'path' || o.type === 'polyline';
+  const isText = ['i-text','text','textbox'].includes(o.type);
+  const isLine = o.type === 'line' || o.type === 'path' || o.type === 'polyline';
   const isShape = ['rect','circle','triangle','polygon','ellipse','group'].includes(o.type);
-  const hasStroke = o.stroke !== undefined && o.stroke !== null && o.stroke !== 'transparent';
-  const hasFill = o.fill !== undefined && o.fill !== null && o.fill !== 'transparent';
+  const hasStroke = o.stroke != null && o.stroke !== '' && o.stroke !== 'transparent';
+  const hasFill = o.fill != null && o.fill !== '' && o.fill !== 'transparent';
 
-  // Show/hide field rows based on type
-  showSelField('row-stroke',   hasStroke || isShape || isLine || isText);
-  showSelField('row-strokew',  isShape || isLine || isText);
-  showSelField('row-fill',     !isText);   // text uses fill as color
-  showSelField('row-text',     isText);
-  showSelField('row-fontsize', isText);
-  showSelField('row-fontstyle', isText);
-  showSelField('row-opacity',  true);
-  showSelField('row-angle',    true);
-  showSelField('row-geom',     true);
-  showSelField('row-actions',  true);
+  showSelField('row-stroke',  hasStroke || isShape || isLine || isText);
+  showSelField('row-strokew', isShape || isLine || isText);
+  showSelField('row-fill',    !isText);
+  showSelField('row-text',    isText);
+  showSelField('row-fontsize',isText);
+  showSelField('row-fontstyle',isText);
+  showSelField('row-opacity', true);
+  showSelField('row-angle',   true);
+  showSelField('row-geom',    true);
+  showSelField('row-actions', true);
 
-  // Populate values
-  const strokeHex = rgbaToHex(o.stroke);
-  $('sel-stroke-color').value = strokeHex;
+  // ★ Populate — only touch elements that are NOT currently focused
+  const safeSet = (id, v) => { if ($(id) !== document.activeElement) $(id).value = v; };
+
+  safeSet('sel-stroke-color', rgbaToHex(o.stroke));
   const sw = Math.max(0, Math.round(o.strokeWidth || 0));
-  $('sel-stroke-width').value = sw;
+  safeSet('sel-stroke-width', sw);
   $('sel-sw-val').textContent = sw + 'px';
 
-  const fillHex = rgbaToHex(o.fill);
-  $('sel-fill-color').value = fillHex;
+  safeSet('sel-fill-color', rgbaToHex(o.fill));
   $('sel-fill-enabled').checked = hasFill;
   const fo = Math.round(hexAlphaOf(o.fill) * 100);
-  $('sel-fill-opacity').value = fo;
+  safeSet('sel-fill-opacity', fo);
   $('sel-fillop-val').textContent = fo + '%';
 
   if (isText){
-    $('sel-text').value = o.text || '';
-    $('sel-font-size').value = o.fontSize || 16;
-    $('sel-fs-val').textContent = (o.fontSize || 16) + 'px';
-    $('sel-bold').checked = String(o.fontWeight) === '700' ||
-                            String(o.fontWeight) === 'bold';
+    if ($('sel-text') !== document.activeElement) $('sel-text').value = o.text || '';
+    const fs = o.fontSize || 16;
+    safeSet('sel-font-size', fs);
+    $('sel-fs-val').textContent = fs + 'px';
+    $('sel-bold').checked = String(o.fontWeight) === '700' || String(o.fontWeight) === 'bold';
     $('sel-italic').checked = o.fontStyle === 'italic';
   }
 
   const op = Math.round((o.opacity == null ? 1 : o.opacity) * 100);
-  $('sel-opacity').value = op;
+  safeSet('sel-opacity', op);
   $('sel-op-val').textContent = op + '%';
 
   const ang = Math.round(o.angle || 0);
-  $('sel-angle').value = ang;
+  safeSet('sel-angle', ang);
   $('sel-angle-val').textContent = ang + '°';
 
-  $('sel-x').value = Math.round(o.left || 0);
-  $('sel-y').value = Math.round(o.top || 0);
-  $('sel-w').value = Math.round((o.width || 0) * (o.scaleX || 1));
-  $('sel-h').value = Math.round((o.height || 0) * (o.scaleY || 1));
+  safeSet('sel-x', Math.round(o.left || 0));
+  safeSet('sel-y', Math.round(o.top || 0));
+  safeSet('sel-w', Math.round((o.width || 0) * (o.scaleX || 1)));
+  safeSet('sel-h', Math.round((o.height || 0) * (o.scaleY || 1)));
   $('sel-lock-ratio').classList.toggle('active', lockRatio);
 }
 
 function applyToSelection(fn){
   const objs = canvas.getActiveObjects();
   if (!objs.length) return;
+  suppressPanelSync = true;
   objs.forEach(fn);
-  canvas.renderAll();
+  canvas.requestRenderAll();
+  suppressPanelSync = false;
   markDirty();
-  syncSelectionPanel();
 }
 
-/* ---- Live binding: stroke color ---- */
-$('sel-stroke-color').oninput = e => {
-  applyToSelection(o => o.set('stroke', e.target.value));
-};
-$('sel-stroke-width').oninput = e => {
+/* ---- Live bindings (FIXED) ---- */
+$('sel-stroke-color').addEventListener('input', e => {
+  const v = e.target.value;
+  applyToSelection(o => o.set('stroke', v));
+  syncSelectionPanelLight();
+});
+$('sel-stroke-width').addEventListener('input', e => {
   const v = parseInt(e.target.value);
   $('sel-sw-val').textContent = v + 'px';
   applyToSelection(o => o.set('strokeWidth', v));
-};
-
-/* ---- Fill ---- */
-$('sel-fill-enabled').onchange = e => {
+});
+$('sel-fill-enabled').addEventListener('change', e => {
   const on = e.target.checked;
-  applyToSelection(o => {
-    if (on){
-      const cur = $('sel-fill-color').value;
-      const a = parseInt($('sel-fill-opacity').value) / 100;
-      o.set('fill', hexWithAlpha(cur, a));
-    } else {
-      o.set('fill', 'transparent');
-    }
-  });
-};
-$('sel-fill-color').oninput = e => {
+  const hex = $('sel-fill-color').value;
   const a = parseInt($('sel-fill-opacity').value) / 100;
-  const hex = e.target.value;
   applyToSelection(o => {
-    if (o.type !== 'i-text' && o.type !== 'text' && o.type !== 'textbox'){
-      o.set('fill', hexWithAlpha(hex, a));
-    }
+    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
+    o.set('fill', on ? hexWithAlpha(hex, a) : 'transparent');
   });
-};
-$('sel-fill-opacity').oninput = e => {
+  syncSelectionPanelLight();
+});
+$('sel-fill-color').addEventListener('input', e => {
+  const hex = e.target.value;
+  const a = parseInt($('sel-fill-opacity').value) / 100;
+  applyToSelection(o => {
+    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
+    if (o.fill === 'transparent') return;
+    o.set('fill', hexWithAlpha(hex, a));
+  });
+});
+$('sel-fill-opacity').addEventListener('input', e => {
   const a = parseInt(e.target.value) / 100;
   $('sel-fillop-val').textContent = e.target.value + '%';
   const hex = $('sel-fill-color').value;
   applyToSelection(o => {
-    if (o.type !== 'i-text' && o.type !== 'text' && o.type !== 'textbox'){
-      o.set('fill', hexWithAlpha(hex, a));
-    }
+    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
+    if (o.fill === 'transparent') return;
+    o.set('fill', hexWithAlpha(hex, a));
   });
-};
-
-/* ---- Text ---- */
-$('sel-text').oninput = e => {
+});
+$('sel-text').addEventListener('input', e => {
+  const v = e.target.value;
   applyToSelection(o => {
     if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
-      o.set('text', e.target.value);
+      o.set('text', v);
+      if (o.initDimensions) o.initDimensions();
     }
   });
-};
-$('sel-font-size').oninput = e => {
+});
+$('sel-font-size').addEventListener('input', e => {
   const v = parseInt(e.target.value);
   $('sel-fs-val').textContent = v + 'px';
   applyToSelection(o => {
     if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
       o.set('fontSize', v);
+      if (o.initDimensions) o.initDimensions();
+      o.setCoords();
     }
   });
-};
-$('sel-bold').onchange = e => {
+});
+$('sel-bold').addEventListener('change', e => {
+  const v = e.target.checked ? '700' : '400';
   applyToSelection(o => {
     if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
-      o.set('fontWeight', e.target.checked ? '700' : '400');
+      o.set('fontWeight', v);
+      if (o.initDimensions) o.initDimensions();
     }
   });
-};
-$('sel-italic').onchange = e => {
+});
+$('sel-italic').addEventListener('change', e => {
+  const v = e.target.checked ? 'italic' : 'normal';
   applyToSelection(o => {
     if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
-      o.set('fontStyle', e.target.checked ? 'italic' : 'normal');
+      o.set('fontStyle', v);
+      if (o.initDimensions) o.initDimensions();
     }
   });
-};
-
-/* ---- Opacity ---- */
-$('sel-opacity').oninput = e => {
+});
+$('sel-opacity').addEventListener('input', e => {
   const v = parseInt(e.target.value) / 100;
   $('sel-op-val').textContent = e.target.value + '%';
   applyToSelection(o => o.set('opacity', v));
-};
-
-/* ---- Angle ---- */
-$('sel-angle').oninput = e => {
+});
+$('sel-angle').addEventListener('input', e => {
   const v = parseInt(e.target.value);
   $('sel-angle-val').textContent = v + '°';
   applyToSelection(o => { o.rotate(v); o.setCoords(); });
-};
-
-/* ---- Position & Size ---- */
-$('sel-x').onchange = e => {
+});
+$('sel-x').addEventListener('change', e => {
   const v = parseFloat(e.target.value);
   applyToSelection(o => o.set('left', v));
-};
-$('sel-y').onchange = e => {
+  syncSelectionPanel();
+});
+$('sel-y').addEventListener('change', e => {
   const v = parseFloat(e.target.value);
   applyToSelection(o => o.set('top', v));
-};
-$('sel-w').onchange = e => {
+  syncSelectionPanel();
+});
+$('sel-w').addEventListener('change', e => {
   const v = parseFloat(e.target.value);
   applyToSelection(o => {
     const baseW = o.width || 1;
     const newScaleX = v / baseW;
-    if (lockRatio){
-      o.set({ scaleX: newScaleX, scaleY: newScaleX });
-    } else {
-      o.set('scaleX', newScaleX);
-    }
+    if (lockRatio) o.set({ scaleX: newScaleX, scaleY: newScaleX });
+    else o.set('scaleX', newScaleX);
+    o.setCoords();
   });
-};
-$('sel-h').onchange = e => {
+});
+$('sel-h').addEventListener('change', e => {
   const v = parseFloat(e.target.value);
   applyToSelection(o => {
     const baseH = o.height || 1;
     const newScaleY = v / baseH;
-    if (lockRatio){
-      o.set({ scaleX: newScaleY, scaleY: newScaleY });
-    } else {
-      o.set('scaleY', newScaleY);
-    }
+    if (lockRatio) o.set({ scaleX: newScaleY, scaleY: newScaleY });
+    else o.set('scaleY', newScaleY);
+    o.setCoords();
   });
-};
+});
 $('sel-lock-ratio').onclick = () => {
   lockRatio = !lockRatio;
   $('sel-lock-ratio').classList.toggle('active', lockRatio);
 };
 $('sel-reset-size').onclick = () => {
-  applyToSelection(o => o.set({ scaleX:1, scaleY:1 }));
+  applyToSelection(o => { o.set({ scaleX:1, scaleY:1 }); o.setCoords(); });
+  syncSelectionPanel();
   toast('Size reset');
 };
-
-/* ---- Layer order + actions ---- */
 $('sel-front').onclick = () => {
   const o = canvas.getActiveObject();
-  if (o) { canvas.bringToFront(o); markDirty(); }
+  if (o){ canvas.bringToFront(o); markDirty(); }
 };
 $('sel-back').onclick = () => {
   const o = canvas.getActiveObject();
-  if (o) { canvas.sendToBack(o); markDirty(); }
+  if (o){ canvas.sendToBack(o); markDirty(); }
 };
+$('sel-copy').onclick = () => copySelection();
+$('sel-paste').onclick = () => pasteClipboard();
 $('sel-dup').onclick = duplicateSel;
 $('sel-del').onclick = deleteSel;
 
 /* =====================================================================
-   15. HISTORY
+   15. ★ COPY / PASTE
+   ===================================================================== */
+function copySelection(){
+  const objs = canvas.getActiveObjects();
+  if (!objs.length){ toast('Nothing selected', 'warn'); return false; }
+  clipboard = [];
+  let pending = objs.length;
+  objs.forEach(o => {
+    o.clone(c => {
+      c.set({ _uid: uid() });
+      clipboard.push(c);
+      if (--pending === 0){
+        clipboardOffset = 0;
+        toast(`Copied ${clipboard.length} object${clipboard.length===1?'':'s'}`, 'ok');
+      }
+    }, CUSTOM_PROPS);
+  });
+  return true;
+}
+
+function pasteClipboard(){
+  if (!clipboard.length){ toast('Clipboard empty', 'warn'); return; }
+  clipboardOffset += 20;
+  const pasted = [];
+  let pending = clipboard.length;
+  clipboard.forEach(src => {
+    src.clone(c => {
+      c.set({
+        left: (src.left || 0) + clipboardOffset,
+        top:  (src.top  || 0) + clipboardOffset,
+        perPixelTargetFind: true,
+        padding: 2,
+        evented: true,
+        selectable: true,
+        _uid: uid(),
+      });
+      c.setCoords();
+      canvas.add(c);
+      pasted.push(c);
+      if (--pending === 0){
+        canvas.discardActiveObject();
+        if (pasted.length === 1){
+          canvas.setActiveObject(pasted[0]);
+        } else {
+          const sel = new fabric.ActiveSelection(pasted, { canvas });
+          canvas.setActiveObject(sel);
+        }
+        canvas.requestRenderAll();
+        refreshPanels();
+        syncSelectionPanel();
+        toast(`Pasted ${pasted.length} object${pasted.length===1?'':'s'}`, 'ok');
+      }
+    }, CUSTOM_PROPS);
+  });
+}
+
+function cutSelection(){
+  if (!copySelection()){
+    return;
+  }
+  setTimeout(() => {
+    const objs = canvas.getActiveObjects();
+    objs.forEach(o => canvas.remove(o));
+    canvas.discardActiveObject();
+    canvas.renderAll();
+    refreshPanels();
+    syncSelectionPanel();
+    toast('Cut', 'ok');
+  }, 30);
+}
+
+/* =====================================================================
+   16. HISTORY
    ===================================================================== */
 const MAX_HISTORY = 80, MAX_BYTES = 4_000_000;
 function serialize(){
   try {
     return JSON.stringify({
-      v: 3,
+      v: 4,
       canvas: { w: canvas.getWidth(), h: canvas.getHeight() },
       fabric: canvas.toJSON(CUSTOM_PROPS),
     });
-  } catch(e){ return '{"v":3,"fabric":{"objects":[]}}'; }
+  } catch(e){ return '{"v":4,"fabric":{"objects":[]}}'; }
 }
 let saveTimer;
 function markDirty(){
@@ -1907,6 +2003,7 @@ function applySnapshot(j){
       canvas.forEachObject(o => {
         o.evented = true;
         o.set({ perPixelTargetFind:true, padding:2 });
+        if (!o._uid) o._uid = uid();
       });
       canvas.renderAll();
       refreshPanels();
@@ -1916,7 +2013,7 @@ function applySnapshot(j){
 }
 
 /* =====================================================================
-   16. ACTIONS
+   17. ACTIONS
    ===================================================================== */
 function deleteSel(){
   const objs = canvas.getActiveObjects();
@@ -1944,7 +2041,7 @@ function duplicateSel(){
         refreshPanels();
         syncSelectionPanel();
       }
-    });
+    }, CUSTOM_PROPS);
   });
   toast('Duplicated');
 }
@@ -1972,7 +2069,7 @@ function clearAll(){
 }
 
 /* =====================================================================
-   17. IMAGE
+   18. IMAGE
    ===================================================================== */
 const MAX_IMAGE_DIM = 4096;
 function downscaleIfNeeded(dataUrl){
@@ -2027,21 +2124,39 @@ $('tb-open').onclick = () => {
   };
   inp.click();
 };
-$('tb-paste').onclick = () => { document.body.focus(); toast('Press Ctrl+V'); };
+$('tb-paste').onclick = () => {
+  // Image paste — triggers via paste event
+  document.body.focus();
+  toast('Press Ctrl+V to paste image from clipboard');
+};
+$('tb-copy').onclick = copySelection;
+$('tb-paste-obj').onclick = pasteClipboard;
+$('tb-cut').onclick = cutSelection;
+
+/* Image paste handler */
 document.addEventListener('paste', e => {
   const now = Date.now();
-  if (now - pasteLock < 500) return;
   const items = (e.clipboardData || {}).items || [];
+  // Image branch
   for (const it of items){
     if (it.kind === 'file' && it.type.startsWith('image/')){
+      if (now - pasteLock < 500) return;
       pasteLock = now;
       const r = new FileReader();
       r.onload = ev => loadImage(ev.target.result, 'pasted');
       r.readAsDataURL(it.getAsFile());
-      e.preventDefault(); return;
+      e.preventDefault();
+      return;
     }
   }
+  // Object paste branch (no image → paste internal clipboard)
+  const editing = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
+                  e.target.isContentEditable;
+  if (!editing && clipboard.length){
+    // Handled by keyboard shortcut too — but this ensures Ctrl+V works reliably
+  }
 });
+
 document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => {
   e.preventDefault();
@@ -2053,7 +2168,7 @@ document.addEventListener('drop', e => {
 });
 
 /* =====================================================================
-   18. VIEW
+   19. VIEW
    ===================================================================== */
 function applyView(){
   $('canvas-holder').style.transform =
@@ -2102,16 +2217,18 @@ window.addEventListener('mousemove', e => {
 });
 
 /* =====================================================================
-   19. PANELS
+   20. PANELS
    ===================================================================== */
 function refreshPanels(){ updateHud(); updateStorageInfo(); }
 function updateHud(){
   const n = canvas.getObjects().filter(o => !o.isBackground).length;
   const chip = $('hud-count');
-  chip.textContent = n + ' object' + (n===1?'':'s');
-  chip.classList.remove('warn','err');
+  chip.textContent = n + ' object' + (n===1?'':'s') +
+    (clipboard.length ? ' · 📋' + clipboard.length : '');
+  chip.classList.remove('warn','err','ok');
   if (n > 800) chip.classList.add('err');
   else if (n > 300) chip.classList.add('warn');
+  else if (clipboard.length) chip.classList.add('ok');
 }
 function updateStorageInfo(){
   const el = $('storage-info');
@@ -2120,7 +2237,7 @@ function updateStorageInfo(){
 }
 
 /* =====================================================================
-   20. EXPORT
+   21. EXPORT
    ===================================================================== */
 function download(blob, name){
   const a = document.createElement('a');
@@ -2151,7 +2268,7 @@ function exportPNG(scale){
 function exportJSON(){
   try {
     const data = {
-      version: 3, kind: 'telecom_site_layout',
+      version: 4, kind: 'telecom_site_layout',
       exported: new Date().toISOString(),
       canvas: { width: canvas.getWidth(), height: canvas.getHeight() },
       scale: { m_per_px: parseFloat($('scale-m').value || 0.05),
@@ -2218,7 +2335,7 @@ function printPlan(){
 }
 
 /* =====================================================================
-   21. SAVE / RESTORE
+   22. SAVE / RESTORE
    ===================================================================== */
 function saveLocal(){
   if (!Storage.available()) return;
@@ -2250,20 +2367,26 @@ function loadLocal(){
 }
 
 /* =====================================================================
-   22. KEYBOARD
+   23. KEYBOARD
    ===================================================================== */
 document.addEventListener('keydown', e => {
-  const editing = e.target.tagName === 'INPUT' || e.target.isContentEditable ||
-                  e.target.tagName === 'TEXTAREA';
+  const editing = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
+                  e.target.isContentEditable;
+
   if ((e.ctrlKey||e.metaKey) && e.shiftKey && e.key.toLowerCase()==='d'){
     e.preventDefault(); runDiagnostics(); return;
   }
   if (editing) return;
+
   if (e.code === 'Space'){ spaceDown = true;
     document.body.style.cursor = 'grab'; e.preventDefault(); }
+
   const k = e.key.toLowerCase();
   if (e.ctrlKey || e.metaKey){
-    if (k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); }
+    if (k === 'c'){ e.preventDefault(); copySelection(); }
+    else if (k === 'v'){ e.preventDefault(); pasteClipboard(); }
+    else if (k === 'x'){ e.preventDefault(); cutSelection(); }
+    else if (k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); }
     else if (k === 'y'){ e.preventDefault(); redo(); }
     else if (k === 'd'){ e.preventDefault(); duplicateSel(); }
     else if (k === 's'){ e.preventDefault(); exportJSON(); }
@@ -2308,7 +2431,7 @@ window.addEventListener('blur', () => {
 });
 
 /* =====================================================================
-   23. DIAGNOSTICS
+   24. DIAGNOSTICS
    ===================================================================== */
 function runDiagnostics(){
   const lines = [
@@ -2321,7 +2444,7 @@ function runDiagnostics(){
     'Objects: ' + canvas.getObjects().length,
     'Labels: ' + canvas.getObjects().filter(o=>o._isStencilLabel).length,
     'Stencils: ' + Object.keys(STENCILS).length,
-    'Label stencils: ' + Object.keys(LABEL_STENCILS).length,
+    'Clipboard: ' + clipboard.length,
     'Undo: ' + undoStack.length + ' / Redo: ' + redoStack.length,
     'UA: ' + navigator.userAgent,
   ];
@@ -2334,13 +2457,14 @@ function runDiagnostics(){
 }
 
 /* =====================================================================
-   24. TOOLBAR BINDINGS
+   25. TOOLBAR BINDINGS
    ===================================================================== */
 $('tb-new').onclick = () => {
   if (!confirm('New site plan? Unsaved work will be lost.')) return;
   canvas.getObjects().forEach(o => canvas.remove(o));
   canvas.setBackgroundImage(null, canvas.renderAll.bind(canvas));
   canvas.setWidth(CW); canvas.setHeight(CH);
+  clipboard = [];
   fileName = 'Untitled Site Plan'; $('file-label').textContent = fileName;
   fitView(); refreshPanels(); syncSelectionPanel();
   toast('New plan started');
@@ -2397,7 +2521,7 @@ function buildPalette(){
 }
 
 /* =====================================================================
-   25. HEIGHT SYNC
+   26. HEIGHT SYNC
    ===================================================================== */
 function syncFrameHeight(){
   try {
@@ -2413,7 +2537,7 @@ window.addEventListener('resize', syncFrameHeight);
 setInterval(syncFrameHeight, 3000);
 
 /* =====================================================================
-   26. BOOT
+   27. BOOT
    ===================================================================== */
 (async function boot(){
   try {
@@ -2433,7 +2557,7 @@ setInterval(syncFrameHeight, 3000);
       loadLocal();
       Boot.ready();
       syncSelectionPanel();
-      toast('Ready — try 📦 stencils or 🏷️ labels');
+      toast('Ready — Ctrl+C / Ctrl+V to copy objects', 'ok');
     }, 200);
   } catch(e){
     console.error('[boot]', e);
