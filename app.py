@@ -167,6 +167,12 @@ APP_HTML = r"""<!DOCTYPE html>
   .sel-only.on{display:block}
   .empty-note{color:#7c8db5;font-size:.72rem;line-height:1.5;
     padding:8px;background:#0b1220;border-radius:6px;border:1px dashed #2a3a5c}
+  #pending-banner{position:absolute;top:56px;left:50%;transform:translateX(-50%);
+    background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;
+    padding:8px 18px;border-radius:10px;font-size:.78rem;font-weight:600;
+    z-index:40;box-shadow:0 6px 20px rgba(99,102,241,.45);display:none;
+    align-items:center;gap:10px;pointer-events:none}
+  #pending-banner.show{display:flex}
 </style>
 </head>
 <body>
@@ -204,6 +210,8 @@ APP_HTML = r"""<!DOCTYPE html>
       <span id="file-label">Untitled Site Plan</span>
     </div>
   </div>
+
+  <div id="pending-banner">📍 Click on canvas to place: <span id="pending-name"></span></div>
 
   <aside id="sidebar">
     <button class="tbtn active" data-tool="select"><span>🖱️</span><span class="tip">Select / Move (V)</span></button>
@@ -432,10 +440,10 @@ APP_HTML = r"""<!DOCTYPE html>
 
     <h3>❓ Help</h3>
     <div class="psection" style="font-size:.68rem;color:#8b9dc3;line-height:1.7">
-      <div><b style="color:#a5b4fc">Stretch:</b> drag corner — length extends, thickness stays</div>
+      <div><b style="color:#a5b4fc">Place stencil:</b> click it, then click canvas</div>
+      <div><b style="color:#a5b4fc">Cancel placement:</b> Esc</div>
       <div><b style="color:#a5b4fc">Copy:</b> Ctrl+C / <b>Paste:</b> Ctrl+V</div>
       <div><b style="color:#a5b4fc">Cut:</b> Ctrl+X</div>
-      <div><b style="color:#a5b4fc">Duplicate:</b> Ctrl+D or Alt+drag</div>
       <div><b style="color:#a5b4fc">Zoom:</b> Ctrl + scroll</div>
       <div><b style="color:#a5b4fc">Pan:</b> Space + drag or H</div>
       <div><b style="color:#a5b4fc">Fit:</b> F</div>
@@ -463,7 +471,7 @@ APP_HTML = r"""<!DOCTYPE html>
 
 <script>
 /* =====================================================================
-   0. BOOT
+   0. BOOT + ERROR BOUNDARY
    ===================================================================== */
 const Boot = {
   show(m){ document.getElementById('boot-msg').textContent = m; },
@@ -499,7 +507,7 @@ function toast(msg, kind){
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
 /* =====================================================================
@@ -528,8 +536,7 @@ function loadFabric(i = 0){
    2. STORAGE
    ===================================================================== */
 const Storage = {
-  KEY: 'telecom_site_v5',
-  KEY_CTR: 'telecom_site_ctr_v5',
+  KEY: 'telecom_site_v6',
   available(){
     try { const k='__t'+Math.random(); localStorage.setItem(k,'1');
           localStorage.removeItem(k); return true; } catch(_){ return false; }
@@ -581,159 +588,10 @@ const CUSTOM_PROPS = ['selectable','evented','isBackground',
                       '_isCable','_isAnnotation','_isDimension',
                       '_stencilLabel','_isStencilLabel','_labelKind',
                       '_uid','_originalWidth','_originalHeight','_boundTo',
-                      '_stretchable','_baseThickness','_minLength'];
+                      '_stretchable','_stretchAxis','_minLength'];
 
 /* =====================================================================
-   4. ★ DYNAMIC STRETCH — the core fix
-   =====================================================================
-   Problem: Fabric scales the entire object including stroke → a 4px thick
-   line becomes 4 × scaleX thick when stretched.
-
-   Solution:
-   1) Every shape gets `strokeUniform: true` → stroke ignores scale.
-   2) For SHAPES that should only extend along one axis (walls, fences,
-      basepads, cable trays, etc.) we hook `object:scaling` and:
-        a) lock the perpendicular axis so thickness stays constant
-        b) rewrite the object's base `width`/`height` from the new
-           visually-scaled size and reset `scaleX`/`scaleY` back to 1
-   3) For LINES we hook `object:scaling` and update x1/y1/x2/y2 to their
-      scaled pixel positions, then reset scale to 1 — so the line is
-      truly longer, not a stretched line image.
-   ===================================================================== */
-
-function applyStrokeUniform(obj){
-  if (!obj || obj.isBackground) return;
-  obj.set({ strokeUniform: true });
-}
-
-function installDynamicStretch(){
-  // Make sure the very first shapes get the flag
-  fabric.Object.prototype.set({ strokeUniform: true });
-
-  canvas.on('object:added', opt => {
-    if (opt.target && !opt.target.isBackground){
-      applyStrokeUniform(opt.target);
-    }
-  });
-
-  canvas.on('object:scaling', opt => {
-    const o = opt.target;
-    if (!o || o.isBackground) return;
-    const e = opt.e;
-
-    // ---- LINES: extend endpoints, reset scale ----
-    if (o.type === 'line'){
-      extendLine(o);
-      return;
-    }
-
-    // ---- Objects flagged _stretchable with thickness lock ----
-    if (o._stretchable){
-      const axis = o._stretchAxis || 'x';   // 'x' = horizontal only, 'y' = vertical only
-      const minLen = o._minLength || 10;
-      const sx = o.scaleX || 1, sy = o.scaleY || 1;
-
-      if (axis === 'x'){
-        // Lock thickness (Y)
-        o.scaleY = 1;
-        // Enforce minimum length
-        const visualW = (o.width || 1) * sx;
-        if (visualW < minLen){
-          o.scaleX = minLen / (o.width || 1);
-        }
-      } else {
-        o.scaleX = 1;
-        const visualH = (o.height || 1) * sy;
-        if (visualH < minLen){
-          o.scaleY = minLen / (o.height || 1);
-        }
-      }
-
-      // If SHIFT is held, keep ratio but still lock perpendicular to 1 — no-op here.
-      o.setCoords();
-      return;
-    }
-
-    // ---- Groups: keep aspect ratio optional but always keep strokeUniform ----
-    if (o.type === 'group'){
-      o.forEachObject(child => {
-        if (!child._stretchable) child.set({ strokeUniform: true });
-      });
-    }
-  });
-
-  // After scaling ends, bake the visual size into width/height and reset scale
-  canvas.on('object:modified', opt => {
-    const o = opt.target;
-    if (!o || o.isBackground) return;
-    if (o.type === 'line'){ extendLine(o); markDirty(); return; }
-    if (o._stretchable){
-      bakeScale(o);
-      markDirty();
-      syncSelectionPanel();
-    }
-  });
-}
-
-/* Extend a Line's endpoints to match the currently scaled visual size,
-   then reset scale back to 1 — the line is truly longer, not stretched. */
-function extendLine(line){
-  const sx = line.scaleX || 1;
-  const sy = line.scaleY || 1;
-  if (Math.abs(sx - 1) < 0.0001 && Math.abs(sy - 1) < 0.0001) return;
-
-  // Line's native endpoints are stored relative to its bbox center.
-  // The scale multiplies them. To extend, compute new absolute positions.
-  const x1 = line.x1, y1 = line.y1, x2 = line.x2, y2 = line.y2;
-  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
-
-  const nx1 = cx + (x1 - cx) * sx;
-  const ny1 = cy + (y1 - cy) * sy;
-  const nx2 = cx + (x2 - cx) * sx;
-  const ny2 = cy + (y2 - cy) * sy;
-
-  line.set({
-    x1: nx1, y1: ny1, x2: nx2, y2: ny2,
-    scaleX: 1, scaleY: 1,
-  });
-  line.setCoords();
-  canvas.requestRenderAll();
-}
-
-/* Bake visual size into width/height, reset scale to 1.
-   This lets thickness stay as `strokeWidth` while length is real. */
-function bakeScale(o){
-  const sx = o.scaleX || 1;
-  const sy = o.scaleY || 1;
-  if (Math.abs(sx - 1) < 0.0001 && Math.abs(sy - 1) < 0.0001) return;
-  if (!o.width || !o.height) return;
-
-  // Store original sizes for reset
-  if (!o._originalWidth)  o._originalWidth  = o.width;
-  if (!o._originalHeight) o._originalHeight = o.height;
-
-  const newW = Math.max(1, o.width * sx);
-  const newH = Math.max(1, o.height * sy);
-
-  // Adjust position so the center stays put
-  const cx = o.left + (o.width * sx) / 2;
-  const cy = o.top  + (o.height * sy) / 2;
-
-  o.set({
-    width: newW,
-    height: newH,
-    scaleX: 1,
-    scaleY: 1,
-    left: cx - newW / 2,
-    top:  cy - newH / 2,
-    strokeUniform: true,
-  });
-  o.setCoords();
-  canvas.requestRenderAll();
-}
-
-/* =====================================================================
-   5. FABRIC PROTOTYPE — tight selection
+   4. FABRIC PROTOTYPE — sensible defaults for editing
    ===================================================================== */
 function tightenSelectionBoxes(){
   fabric.Object.prototype.set({
@@ -741,18 +599,36 @@ function tightenSelectionBoxes(){
     transparentCorners: true,
     cornerColor: '#6366f1',
     cornerStrokeColor: '#ffffff',
-    cornerSize: 8,
+    cornerSize: 9,
     cornerStyle: 'circle',
     borderColor: '#6366f1',
-    borderScaleFactor: 1,
-    borderOpacityWhenMoving: 0.6,
-    perPixelTargetFind: true,
+    borderScaleFactor: 1.5,
+    borderOpacityWhenMoving: 0.9,
     strokeUniform: true,
+    // ★ perPixelTargetFind is ON only for line-like objects (see makeHitFriendly)
   });
 }
 
+/* ★ Make groups hit-friendly: disable perPixelTargetFind on groups so
+   clicking anywhere within the bounding box selects them (users expect
+   this for stencils). Enable it only on thin objects (lines, paths). */
+function makeHitFriendly(obj){
+  if (!obj) return;
+  if (obj.type === 'line' || obj.type === 'path' || obj.type === 'polyline'){
+    obj.set({ perPixelTargetFind: true });
+  } else {
+    obj.set({ perPixelTargetFind: false });
+  }
+  // Groups: walk children
+  if (obj.type === 'group' && obj._objects){
+    obj._objects.forEach(child => {
+      child.set({ perPixelTargetFind: false });
+    });
+  }
+}
+
 /* =====================================================================
-   6. SYMBOL PRIMITIVES
+   5. SYMBOL PRIMITIVES
    ===================================================================== */
 function uid(){ return 'o' + (uidCounter++); }
 function mkLine(x1,y1,x2,y2, opt){
@@ -785,7 +661,8 @@ function mkText(s,x,y,size, opt){
 }
 function mkGroup(objs, label, opts){
   const g = new fabric.Group(objs, Object.assign({
-    selectable:true, evented:true, strokeUniform: true
+    selectable:true, evented:true, strokeUniform: true,
+    subTargetCheck: false, interactive: false,
   }, opts||{}));
   if (label) g._stencilLabel = label;
   g._uid = uid();
@@ -827,7 +704,7 @@ function makeDetachedLabel(text, x, y, opt){
     fontWeight: opt.fontWeight || '700',
     backgroundColor: opt.bg || 'rgba(255,255,255,0.85)',
     padding: 3,
-    selectable: true, evented: true,
+    selectable: true, evented: true, perPixelTargetFind: false,
   });
   lbl._isStencilLabel = true;
   lbl._labelKind = opt.kind || 'equipment';
@@ -836,17 +713,8 @@ function makeDetachedLabel(text, x, y, opt){
   return lbl;
 }
 
-/* ★ Helper: mark an object as stretchable along one axis */
-function makeStretchable(obj, axis, minLen){
-  obj._stretchable = true;
-  obj._stretchAxis = axis || 'x';
-  obj._minLength = minLen || 20;
-  obj._baseThickness = axis === 'x' ? obj.height : obj.width;
-  return obj;
-}
-
 /* =====================================================================
-   7. STENCIL LIBRARY
+   6. STENCIL LIBRARY
    ===================================================================== */
 const STENCILS = {
 
@@ -886,41 +754,37 @@ const STENCILS = {
     return { group: mkGroup(parts, 'Fence'), labels: [] };
   },
 
-  /* ★ NEW: Cement Fence — concrete wall with posts and panel joints */
   cement_fence(){
     const W = 6*M2PX;
-    const H = 10;                 // wall thickness in px (≈0.5m at 20px/m)
+    const H = 10;
     const parts = [];
-    // Main concrete wall body
     parts.push(mkRect(0, 0, W, H, {
       fill:'#a8a29e', stroke:'#44403c', strokeWidth:2
     }));
-    // Post joints (thicker vertical lines)
     const postSpacing = 60;
     for (let x = postSpacing; x < W; x += postSpacing){
       parts.push(mkRect(x - 3, -2, 6, H + 4, {
         fill:'#78716c', stroke:'#1c1917', strokeWidth:1.2
       }));
     }
-    // End posts
     parts.push(mkRect(-3, -2, 6, H + 4, {
       fill:'#78716c', stroke:'#1c1917', strokeWidth:1.2
     }));
     parts.push(mkRect(W - 3, -2, 6, H + 4, {
       fill:'#78716c', stroke:'#1c1917', strokeWidth:1.2
     }));
-    // Concrete hatch texture
     for (let x = 6; x < W - 6; x += 8){
       parts.push(mkLine(x, 2, x, H - 2, {
         stroke:'#78716c', strokeWidth:0.5, opacity:0.55
       }));
     }
-    // Center line (wall axis)
     parts.push(mkLine(0, H/2, W, H/2, {
       stroke:'#1c1917', strokeWidth:0.6, strokeDashArray:[4,4]
     }));
     const grp = mkGroup(parts, 'Cement Fence');
-    makeStretchable(grp, 'x', 40);
+    grp._stretchable = true;
+    grp._stretchAxis = 'x';
+    grp._minLength = 40;
     return { group: grp, labels: [
       { text:'CEMENT FENCE', x: 0, y: -22, kind:'equipment' },
       { text:`${(W/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
@@ -1166,7 +1030,7 @@ const STENCILS = {
     parts.push(mkLine(W, H, W-c, H, { stroke:'#0f172a', strokeWidth:2.5 }));
     parts.push(mkLine(W, H, W, H-c, { stroke:'#0f172a', strokeWidth:2.5 }));
     const grp = mkGroup(parts, 'Cement Basepad');
-    makeStretchable(grp, 'x', 40);
+    grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 40;
     return { group: grp, labels: [
       { text:'CEMENT BASEPAD', x: 0, y: -20, kind:'equipment' },
       { text:`${(W/M2PX).toFixed(1)} × ${(H/M2PX).toFixed(1)} m`,
@@ -1184,7 +1048,7 @@ const STENCILS = {
     parts.push(mkText('GEN PAD', W/2 - 30, H/2 - 4, 9,
       { fontWeight:'700', fill:'#78350f', selectable:false }));
     const grp = mkGroup(parts, 'Gen Basepad');
-    makeStretchable(grp, 'x', 40);
+    grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 40;
     return { group: grp, labels: [
       { text:'GENERATOR BASEPAD', x: 0, y: -20, kind:'equipment' },
       { text:`${(W/M2PX).toFixed(1)}×${(H/M2PX).toFixed(1)}m`,
@@ -1202,7 +1066,7 @@ const STENCILS = {
     parts.push(mkText('TX PAD', W/2 - 24, H/2 - 4, 9,
       { fontWeight:'700', fill:'#78350f', selectable:false }));
     const grp = mkGroup(parts, 'TX Basepad');
-    makeStretchable(grp, 'x', 30);
+    grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 30;
     return { group: grp, labels: [
       { text:'TRANSFORMER BASEPAD', x: 0, y: -20, kind:'equipment' }
     ]};
@@ -1216,7 +1080,7 @@ const STENCILS = {
       stroke:'#0369a1', strokeWidth: 1.5
     }));
     const grp = mkGroup(parts, 'AC Basepad');
-    makeStretchable(grp, 'x', 20);
+    grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 20;
     return { group: grp, labels: [
       { text:'AC BASEPAD', x: 0, y: -16, kind:'equipment' }
     ]};
@@ -1253,7 +1117,7 @@ const STENCILS = {
       parts.push(mkLine(x, 1, x, H-1, { stroke:'#475569', strokeWidth:0.8 }));
     }
     const grp = mkGroup(parts, 'Cable Tray');
-    makeStretchable(grp, 'x', 20);
+    grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 20;
     return { group: grp, labels: [
       { text:'CABLE TRAY', x: 0, y: -14, kind:'equipment' },
       { text:`${(W/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
@@ -1347,7 +1211,7 @@ const STENCILS = {
     }
     parts.push(mkLine(0, H/2, W, H/2, { stroke:'#44403c', strokeWidth:0.5 }));
     const grp = mkGroup(parts, 'Wall');
-    makeStretchable(grp, 'x', 30);
+    grp._stretchable = true; grp._stretchAxis = 'x'; grp._minLength = 30;
     return { group: grp, labels: [] };
   },
 };
@@ -1379,6 +1243,90 @@ const LABEL_STENCILS = {
 };
 
 /* =====================================================================
+   7. DYNAMIC STRETCH — non-destructive thickness lock
+   ===================================================================== */
+function installDynamicStretch(){
+  fabric.Object.prototype.set({ strokeUniform: true });
+
+  canvas.on('object:added', opt => {
+    if (opt.target && !opt.target.isBackground){
+      opt.target.set({ strokeUniform: true });
+    }
+  });
+
+  canvas.on('object:scaling', opt => {
+    const o = opt.target;
+    if (!o || o.isBackground) return;
+
+    // Lines: extend endpoints
+    if (o.type === 'line'){
+      const sx = o.scaleX || 1, sy = o.scaleY || 1;
+      if (Math.abs(sx - 1) < 0.001 && Math.abs(sy - 1) < 0.001) return;
+      const x1 = o.x1, y1 = o.y1, x2 = o.x2, y2 = o.y2;
+      const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+      o.set({
+        x1: cx + (x1 - cx) * sx, y1: cy + (y1 - cy) * sy,
+        x2: cx + (x2 - cx) * sx, y2: cy + (y2 - cy) * sy,
+        scaleX: 1, scaleY: 1,
+      });
+      o.setCoords();
+      return;
+    }
+
+    // Stretchable groups: lock perpendicular axis
+    if (o._stretchable){
+      const axis = o._stretchAxis || 'x';
+      const minLen = o._minLength || 10;
+      if (axis === 'x'){
+        o.scaleY = 1;
+        const visW = (o.width || 1) * (o.scaleX || 1);
+        if (visW < minLen) o.scaleX = minLen / (o.width || 1);
+      } else {
+        o.scaleX = 1;
+        const visH = (o.height || 1) * (o.scaleY || 1);
+        if (visH < minLen) o.scaleY = minLen / (o.height || 1);
+      }
+      o.setCoords();
+      return;
+    }
+  });
+
+  // Bake visual size into width/height on release
+  canvas.on('object:modified', opt => {
+    const o = opt.target;
+    if (!o || o.isBackground) return;
+    if (o._stretchable){
+      bakeScale(o);
+      markDirty();
+      syncSelectionPanel();
+    }
+  });
+}
+
+function bakeScale(o){
+  const sx = o.scaleX || 1;
+  const sy = o.scaleY || 1;
+  if (Math.abs(sx - 1) < 0.001 && Math.abs(sy - 1) < 0.001) return;
+  if (!o.width || !o.height) return;
+  if (!o._originalWidth) o._originalWidth = o.width;
+  if (!o._originalHeight) o._originalHeight = o.height;
+
+  const newW = Math.max(1, o.width * sx);
+  const newH = Math.max(1, o.height * sy);
+  const cx = o.left + (o.width * sx) / 2;
+  const cy = o.top + (o.height * sy) / 2;
+
+  o.set({
+    width: newW, height: newH,
+    scaleX: 1, scaleY: 1,
+    left: cx - newW / 2, top: cy - newH / 2,
+    strokeUniform: true,
+  });
+  o.setCoords();
+  canvas.requestRenderAll();
+}
+
+/* =====================================================================
    8. CANVAS INIT
    ===================================================================== */
 function initCanvas(){
@@ -1397,9 +1345,11 @@ function initCanvas(){
   canvas.on('mouse:up',    onUp);
 
   canvas.on('object:added', opt => {
-    if (opt.target && !opt.target.isBackground){
-      opt.target.set({ perPixelTargetFind:true, padding:2, strokeUniform: true });
-      if (!opt.target._uid) opt.target._uid = uid();
+    const o = opt.target;
+    if (o && !o.isBackground){
+      o.set({ strokeUniform: true });
+      if (!o._uid) o._uid = uid();
+      makeHitFriendly(o);
     }
     markDirty(); refreshPanels();
   });
@@ -1421,7 +1371,7 @@ function initCanvas(){
   });
 
   drawGridOverlay();
-  installDynamicStretch();  // ★ enable dynamic stretch
+  installDynamicStretch();
 }
 
 /* =====================================================================
@@ -1479,7 +1429,7 @@ function snapPt(p){
 }
 
 /* =====================================================================
-   11. POINTER HANDLERS
+   11. POINTER HANDLERS — ★ fixed placement + drag
    ===================================================================== */
 function onDown(opt){
   if (spaceDown || currentTool === 'pan'){
@@ -1491,6 +1441,8 @@ function onDown(opt){
     if (opt.target && !opt.target.isBackground){ canvas.remove(opt.target); toast('Erased'); }
     return;
   }
+
+  // ★ STENCIL PLACEMENT — top priority, works with ANY tool
   if (pendingStencil){
     const p = canvas.getPointer(opt.e);
     placeStencil(pendingStencil, p.x, p.y);
@@ -1501,21 +1453,27 @@ function onDown(opt){
     placeLabel(pendingLabelId, p.x, p.y);
     return;
   }
+
+  // SELECT tool — let Fabric handle drag/select natively
   if (currentTool === 'select'){
+    // Alt+drag clone
     if (opt.target && opt.e.altKey && !opt.target.isBackground){
       const orig = opt.target;
       orig.clone(c => {
         c.set({ left:(orig.left||0)+20, top:(orig.top||0)+20,
-                evented:true, selectable:true,
-                perPixelTargetFind:true, padding:2, strokeUniform:true,
+                evented:true, selectable:true, strokeUniform:true,
                 _uid: uid() });
+        makeHitFriendly(c);
         canvas.add(c); canvas.setActiveObject(c); canvas.renderAll();
         toast('Duplicated');
       }, CUSTOM_PROPS);
     }
-    return;
+    return;   // ★ CRITICAL: return and let Fabric drag the object
   }
+
+  // Click on an existing object with a draw tool → don't draw, let it select/drag
   if (opt.target && !opt.target.isBackground) return;
+
   const active = canvas.getActiveObject();
   if (active && active.isEditing) return;
   if (active) canvas.discardActiveObject();
@@ -1694,9 +1652,9 @@ function onUp(){
     }
   } catch(_) {}
 
-  activeShape.set({ selectable:true, evented:true, perPixelTargetFind:true,
-                    padding:2, strokeUniform:true });
+  activeShape.set({ selectable:true, evented:true, strokeUniform:true });
   activeShape._uid = uid();
+  makeHitFriendly(activeShape);
   canvas.setActiveObject(activeShape);
 
   if (showDims && (activeShape.type === 'line' || activeShape._isDimension)){
@@ -1721,6 +1679,7 @@ function addDimensionLabel(line){
     backgroundColor: 'rgba(255,255,255,.9)',
     padding: 2, selectable:true, evented:true,
     angle: (Math.abs(angle) > 90 ? angle + 180 : angle),
+    perPixelTargetFind: false,
   });
   txt._isAnnotation = true;
   txt._uid = uid();
@@ -1728,64 +1687,92 @@ function addDimensionLabel(line){
 }
 
 /* =====================================================================
-   12. STENCIL PLACEMENT
+   12. ★ STENCIL PLACEMENT — fixed
    ===================================================================== */
 function placeStencil(id, x, y){
   const fn = STENCILS[id];
-  if (!fn){ toast('Unknown stencil', 'err'); pendingStencil = null; return; }
+  if (!fn){ toast('Unknown stencil', 'err'); pendingStencil = null; hidePendingBanner(); return; }
   try {
     const { group, labels } = fn();
     group.set({
       left:x, top:y, originX:'center', originY:'center',
-      perPixelTargetFind:true, padding:2, strokeUniform: true,
+      selectable:true, evented:true, strokeUniform: true,
     });
+    makeHitFriendly(group);
     canvas.add(group);
 
+    // ★ Labels as separate, selectable, draggable objects
     if (labels && labels.length){
       const b = group.getBoundingRect(true, true);
       labels.forEach((L) => {
-        const lx = b.left + b.width/2 + L.x;
+        const lx = b.left + b.width/2 + (L.x || 0) - 30;
         const ly = b.top + (L.y !== undefined ? L.y : 0) + (L.y < 0 ? 0 : b.height);
         const opt = Object.assign({ boundTo: group._uid, kind: L.kind }, L);
-        const lbl = makeDetachedLabel(L.text, lx - 30, ly, opt);
+        const lbl = makeDetachedLabel(L.text, lx, ly, opt);
         canvas.add(lbl);
       });
     }
+
+    // ★ Select the new group so the user sees it worked
+    canvas.discardActiveObject();
     canvas.setActiveObject(group);
     canvas.renderAll();
-    toast('Placed: ' + id.replace(/_/g,' '));
+    toast('Placed: ' + id.replace(/_/g,' '), 'ok');
+
+    // ★ AUTO-CLEAR pending so user isn't stuck in placement mode
+    pendingStencil = null;
+    pendingLabelId = null;
+    hidePendingBanner();
+
+    // ★ Auto-switch to select tool so user can drag it immediately
+    setTimeout(() => setTool('select'), 30);
+
+    markDirty();
+    refreshPanels();
+    syncSelectionPanel();
   } catch(e){
     toast('Stencil failed: ' + e.message, 'err');
-    console.error(e);
+    console.error('[placeStencil]', e);
+    pendingStencil = null;
+    hidePendingBanner();
   }
-  pendingStencil = null;
-  setTool('select');
-  $('stencil-panel').classList.remove('open');
 }
 
 function placeLabel(id, x, y){
   const def = LABEL_STENCILS[id];
-  if (!def){ toast('Unknown label', 'err'); pendingLabelId = null; return; }
+  if (!def){ toast('Unknown label', 'err'); pendingLabelId = null; hidePendingBanner(); return; }
   const lbl = makeDetachedLabel(def.text, x - 40, y - 10, {
     fontSize: def.fontSize, fill: def.fill,
     bg: def.bg, kind: def.kind,
   });
   canvas.add(lbl);
+  canvas.discardActiveObject();
   canvas.setActiveObject(lbl);
   canvas.renderAll();
-  toast('Label placed');
+  toast('Label placed', 'ok');
   pendingLabelId = null;
-  setTool('select');
-  $('stencil-panel').classList.remove('open');
+  hidePendingBanner();
+  setTimeout(() => setTool('select'), 30);
+  markDirty();
+  syncSelectionPanel();
 }
 
 /* =====================================================================
-   13. TOOLS
+   13. TOOLS + pending banner
    ===================================================================== */
+function showPendingBanner(name){
+  $('pending-name').textContent = name;
+  $('pending-banner').classList.add('show');
+}
+function hidePendingBanner(){
+  $('pending-banner').classList.remove('show');
+}
+
 function setTool(tool){
   if (currentTool === 'polyline' && polyPreview) finalizePolyline();
   pendingStencil = null;
   pendingLabelId = null;
+  hidePendingBanner();
   currentTool = tool;
   document.querySelectorAll('.tbtn[data-tool]').forEach(b =>
     b.classList.toggle('active', b.dataset.tool === tool));
@@ -1803,26 +1790,33 @@ function finalizePolyline(){
     polyPreview = null; polyPoints = [];
     return;
   }
-  polyPreview.set({ selectable:true, evented:true, perPixelTargetFind:true,
-                    padding:2, strokeUniform: true });
+  polyPreview.set({ selectable:true, evented:true, strokeUniform:true });
   polyPreview._uid = uid();
+  makeHitFriendly(polyPreview);
   canvas.setActiveObject(polyPreview);
   canvas.requestRenderAll();
   markDirty(); refreshPanels();
   polyPreview = null; polyPoints = [];
-  toast('Polyline finished');
+  toast('Polyline finished', 'ok');
 }
 $('tbtn-stencil').onclick = () => $('stencil-panel').classList.toggle('open');
 document.querySelectorAll('.stencil').forEach(el => {
   el.onclick = () => {
     const id = el.dataset.stencil;
+    const name = el.textContent.trim();
     if (id in LABEL_STENCILS){
       pendingLabelId = id;
-      toast(`Click on canvas to place: ${id.replace(/_/g,' ')}`);
+      pendingStencil = null;
+      showPendingBanner(name);
+      toast(`Click canvas to place: ${name}`);
     } else {
       pendingStencil = id;
-      toast(`Click on canvas to place: ${id.replace(/_/g,' ')}`);
+      pendingLabelId = null;
+      showPendingBanner(name);
+      toast(`Click canvas to place: ${name}`);
     }
+    // Keep stencil panel open in case user wants to pick another
+    setTool('select');  // ensure select tool so click registers placement (not drawing)
   };
 });
 
@@ -1855,7 +1849,7 @@ function hexAlphaOf(rgba){
 }
 
 /* =====================================================================
-   15. SELECTION PANEL
+   15. ★ SELECTION PANEL — LIVE customization (FIXED)
    ===================================================================== */
 function showSelField(id, on){
   const el = $(id);
@@ -1898,6 +1892,7 @@ function syncSelectionPanel(){
   const typeLabel = multi ? `${objs.length} objects selected`
                           : (o._isStencilLabel ? 'Label'
                             : o._isAnnotation ? 'Dimension label'
+                            : o.type === 'group' ? (o._stencilLabel || 'Group')
                             : o.type);
   $('sel-type').textContent = typeLabel;
   $('sel-uid').textContent = o._uid || '';
@@ -1921,16 +1916,27 @@ function syncSelectionPanel(){
 
   const safeSet = (id, v) => { if ($(id) !== document.activeElement) $(id).value = v; };
 
-  safeSet('sel-stroke-color', rgbaToHex(o.stroke));
+  // For groups, show a representative stroke from first child with a stroke
+  let repStroke = o.stroke;
+  if (o.type === 'group' && o._objects){
+    const child = o._objects.find(c => c.stroke && c.stroke !== '' && c.stroke !== 'transparent');
+    if (child) repStroke = child.stroke;
+  }
+  safeSet('sel-stroke-color', rgbaToHex(repStroke));
   const sw = Math.max(0, Math.round(o.strokeWidth || 0));
   safeSet('sel-stroke-width', sw);
   $('sel-sw-val').textContent = sw + 'px';
 
-  safeSet('sel-fill-color', rgbaToHex(o.fill));
-  $('sel-fill-enabled').checked = hasFill;
-  const fo = Math.round(hexAlphaOf(o.fill) * 100);
-  safeSet('sel-fill-opacity', fo);
-  $('sel-fillop-val').textContent = fo + '%';
+  let repFill = o.fill;
+  if (o.type === 'group' && o._objects){
+    const child = o._objects.find(c => c.fill && c.fill !== '' && c.fill !== 'transparent');
+    if (child) repFill = child.fill;
+  }
+  safeSet('sel-fill-color', rgbaToHex(repFill));
+  $('sel-fill-enabled').checked = hasFill || (o.type === 'group');
+  const fo = Math.round(hexAlphaOf(repFill) * 100);
+  safeSet('sel-fill-opacity', fo || 40);
+  $('sel-fillop-val').textContent = (fo || 40) + '%';
 
   if (isText){
     if ($('sel-text') !== document.activeElement) $('sel-text').value = o.text || '';
@@ -1955,174 +1961,222 @@ function syncSelectionPanel(){
   safeSet('sel-h', Math.round((o.height || 0) * (o.scaleY || 1)));
   $('sel-lock-ratio').classList.toggle('active', lockRatio);
 }
+
+/* ★ CRITICAL FIX: applyToSelection used getActiveObjects() which could
+   return an empty list in some cases. Use active object + selection. */
+function getEditableTargets(){
+  const active = canvas.getActiveObject();
+  if (!active) return [];
+  if (active.type === 'activeSelection'){
+    return active.getObjects() || [];
+  }
+  return [active];
+}
 function applyToSelection(fn){
-  const objs = canvas.getActiveObjects();
-  if (!objs.length) return;
+  const targets = getEditableTargets();
+  if (!targets.length) return;
   suppressPanelSync = true;
-  objs.forEach(fn);
+  targets.forEach(o => {
+    try { fn(o); } catch(e){ console.warn(e); }
+    // Apply to group children so stroke/fill edits hit nested shapes
+    if (o.type === 'group' && o._objects){
+      o._objects.forEach(child => {
+        try {
+          if (child.stroke !== undefined) fn(child);
+        } catch(_){}
+      });
+    }
+  });
+  if (canvas.getActiveObject()) canvas.getActiveObject().setCoords();
   canvas.requestRenderAll();
   suppressPanelSync = false;
   markDirty();
 }
 
-$('sel-stroke-color').addEventListener('input', e => {
-  const v = e.target.value;
-  applyToSelection(o => o.set('stroke', v));
-});
-$('sel-stroke-width').addEventListener('input', e => {
-  const v = parseInt(e.target.value);
-  $('sel-sw-val').textContent = v + 'px';
-  applyToSelection(o => o.set('strokeWidth', v));
-});
-$('sel-fill-enabled').addEventListener('change', e => {
-  const on = e.target.checked;
-  const hex = $('sel-fill-color').value;
-  const a = parseInt($('sel-fill-opacity').value) / 100;
-  applyToSelection(o => {
-    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
-    o.set('fill', on ? hexWithAlpha(hex, a) : 'transparent');
+/* =====================================================================
+   16. ★ PROPERTY EVENT BINDINGS (re-bound every boot — safe)
+   ===================================================================== */
+function bindPropertyControls(){
+  const bind = (id, ev, handler) => {
+    const el = $(id);
+    if (!el) return;
+    // Remove old listeners by cloning
+    const clone = el.cloneNode(true);
+    el.parentNode.replaceChild(clone, el);
+    clone.addEventListener(ev, handler);
+  };
+
+  bind('sel-stroke-color', 'input', e => {
+    const v = e.target.value;
+    applyToSelection(o => o.set('stroke', v));
   });
-});
-$('sel-fill-color').addEventListener('input', e => {
-  const hex = e.target.value;
-  const a = parseInt($('sel-fill-opacity').value) / 100;
-  applyToSelection(o => {
-    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
-    if (o.fill === 'transparent') return;
-    o.set('fill', hexWithAlpha(hex, a));
+
+  bind('sel-stroke-width', 'input', e => {
+    const v = parseInt(e.target.value) || 0;
+    $('sel-sw-val').textContent = v + 'px';
+    applyToSelection(o => o.set('strokeWidth', v));
   });
-});
-$('sel-fill-opacity').addEventListener('input', e => {
-  const a = parseInt(e.target.value) / 100;
-  $('sel-fillop-val').textContent = e.target.value + '%';
-  const hex = $('sel-fill-color').value;
-  applyToSelection(o => {
-    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
-    if (o.fill === 'transparent') return;
-    o.set('fill', hexWithAlpha(hex, a));
+
+  bind('sel-fill-enabled', 'change', e => {
+    const on = e.target.checked;
+    const hex = $('sel-fill-color').value;
+    const a = parseInt($('sel-fill-opacity').value) / 100;
+    applyToSelection(o => {
+      if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
+      o.set('fill', on ? hexWithAlpha(hex, a) : 'transparent');
+    });
   });
-});
-$('sel-text').addEventListener('input', e => {
-  const v = e.target.value;
-  applyToSelection(o => {
-    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
-      o.set('text', v);
-      if (o.initDimensions) o.initDimensions();
-    }
+
+  bind('sel-fill-color', 'input', e => {
+    const hex = e.target.value;
+    const a = parseInt($('sel-fill-opacity').value) / 100;
+    applyToSelection(o => {
+      if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
+      if (o.fill === 'transparent' && !$('sel-fill-enabled').checked) return;
+      o.set('fill', hexWithAlpha(hex, a));
+    });
+    $('sel-fill-enabled').checked = true;
   });
-});
-$('sel-font-size').addEventListener('input', e => {
-  const v = parseInt(e.target.value);
-  $('sel-fs-val').textContent = v + 'px';
-  applyToSelection(o => {
-    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
-      o.set('fontSize', v);
-      if (o.initDimensions) o.initDimensions();
+
+  bind('sel-fill-opacity', 'input', e => {
+    const a = parseInt(e.target.value) / 100;
+    $('sel-fillop-val').textContent = e.target.value + '%';
+    const hex = $('sel-fill-color').value;
+    applyToSelection(o => {
+      if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
+      o.set('fill', hexWithAlpha(hex, a));
+    });
+  });
+
+  bind('sel-text', 'input', e => {
+    const v = e.target.value;
+    applyToSelection(o => {
+      if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+        o.set('text', v);
+        if (o.initDimensions) o.initDimensions();
+        o.setCoords();
+      }
+    });
+  });
+
+  bind('sel-font-size', 'input', e => {
+    const v = parseInt(e.target.value) || 16;
+    $('sel-fs-val').textContent = v + 'px';
+    applyToSelection(o => {
+      if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+        o.set('fontSize', v);
+        if (o.initDimensions) o.initDimensions();
+        o.setCoords();
+      }
+    });
+  });
+
+  bind('sel-bold', 'change', e => {
+    const v = e.target.checked ? '700' : '400';
+    applyToSelection(o => {
+      if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+        o.set('fontWeight', v);
+        if (o.initDimensions) o.initDimensions();
+      }
+    });
+  });
+
+  bind('sel-italic', 'change', e => {
+    const v = e.target.checked ? 'italic' : 'normal';
+    applyToSelection(o => {
+      if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+        o.set('fontStyle', v);
+        if (o.initDimensions) o.initDimensions();
+      }
+    });
+  });
+
+  bind('sel-opacity', 'input', e => {
+    const v = parseInt(e.target.value) / 100;
+    $('sel-op-val').textContent = e.target.value + '%';
+    applyToSelection(o => o.set('opacity', v));
+  });
+
+  bind('sel-angle', 'input', e => {
+    const v = parseInt(e.target.value);
+    $('sel-angle-val').textContent = v + '°';
+    applyToSelection(o => { o.rotate(v); o.setCoords(); });
+  });
+
+  bind('sel-x', 'change', e => {
+    const v = parseFloat(e.target.value);
+    applyToSelection(o => o.set('left', v));
+    syncSelectionPanel();
+  });
+  bind('sel-y', 'change', e => {
+    const v = parseFloat(e.target.value);
+    applyToSelection(o => o.set('top', v));
+    syncSelectionPanel();
+  });
+
+  bind('sel-w', 'change', e => {
+    const v = parseFloat(e.target.value);
+    applyToSelection(o => {
+      const baseW = o.width || 1;
+      o.set('scaleX', v / baseW);
+      if (lockRatio) o.set('scaleY', v / baseW);
       o.setCoords();
-    }
+    });
+    // Bake stretchable
+    const o = canvas.getActiveObject();
+    if (o && o._stretchable) bakeScale(o);
+    syncSelectionPanel();
   });
-});
-$('sel-bold').addEventListener('change', e => {
-  const v = e.target.checked ? '700' : '400';
-  applyToSelection(o => {
-    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
-      o.set('fontWeight', v);
-      if (o.initDimensions) o.initDimensions();
-    }
+  bind('sel-h', 'change', e => {
+    const v = parseFloat(e.target.value);
+    applyToSelection(o => {
+      const baseH = o.height || 1;
+      o.set('scaleY', v / baseH);
+      if (lockRatio) o.set('scaleX', v / baseH);
+      o.setCoords();
+    });
+    const o = canvas.getActiveObject();
+    if (o && o._stretchable) bakeScale(o);
+    syncSelectionPanel();
   });
-});
-$('sel-italic').addEventListener('change', e => {
-  const v = e.target.checked ? 'italic' : 'normal';
-  applyToSelection(o => {
-    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
-      o.set('fontStyle', v);
-      if (o.initDimensions) o.initDimensions();
-    }
+
+  bind('sel-lock-ratio', 'click', () => {
+    lockRatio = !lockRatio;
+    $('sel-lock-ratio').classList.toggle('active', lockRatio);
   });
-});
-$('sel-opacity').addEventListener('input', e => {
-  const v = parseInt(e.target.value) / 100;
-  $('sel-op-val').textContent = e.target.value + '%';
-  applyToSelection(o => o.set('opacity', v));
-});
-$('sel-angle').addEventListener('input', e => {
-  const v = parseInt(e.target.value);
-  $('sel-angle-val').textContent = v + '°';
-  applyToSelection(o => { o.rotate(v); o.setCoords(); });
-});
-$('sel-x').addEventListener('change', e => {
-  const v = parseFloat(e.target.value);
-  applyToSelection(o => o.set('left', v));
-  syncSelectionPanel();
-});
-$('sel-y').addEventListener('change', e => {
-  const v = parseFloat(e.target.value);
-  applyToSelection(o => o.set('top', v));
-  syncSelectionPanel();
-});
-$('sel-w').addEventListener('change', e => {
-  const v = parseFloat(e.target.value);
-  applyToSelection(o => {
-    const baseW = o.width || 1;
-    const newScaleX = v / baseW;
-    if (lockRatio) o.set({ scaleX: newScaleX, scaleY: newScaleX });
-    else o.set('scaleX', newScaleX);
-    o.setCoords();
+
+  bind('sel-reset-size', 'click', () => {
+    applyToSelection(o => {
+      if (o._originalWidth && o._originalHeight){
+        o.set({ width: o._originalWidth, height: o._originalHeight, scaleX: 1, scaleY: 1 });
+      } else {
+        o.set({ scaleX: 1, scaleY: 1 });
+      }
+      o.setCoords();
+    });
+    syncSelectionPanel();
+    toast('Size reset', 'ok');
   });
-  // Bake immediately so the visual matches
-  const o = canvas.getActiveObject();
-  if (o && o._stretchable) bakeScale(o);
-});
-$('sel-h').addEventListener('change', e => {
-  const v = parseFloat(e.target.value);
-  applyToSelection(o => {
-    const baseH = o.height || 1;
-    const newScaleY = v / baseH;
-    if (lockRatio) o.set({ scaleX: newScaleY, scaleY: newScaleY });
-    else o.set('scaleY', newScaleY);
-    o.setCoords();
+
+  bind('sel-front', 'click', () => {
+    const o = canvas.getActiveObject();
+    if (o){ canvas.bringToFront(o); markDirty(); }
   });
-  const o = canvas.getActiveObject();
-  if (o && o._stretchable) bakeScale(o);
-});
-$('sel-lock-ratio').onclick = () => {
-  lockRatio = !lockRatio;
-  $('sel-lock-ratio').classList.toggle('active', lockRatio);
-};
-$('sel-reset-size').onclick = () => {
-  applyToSelection(o => {
-    if (o._originalWidth && o._originalHeight){
-      o.set({
-        width: o._originalWidth,
-        height: o._originalHeight,
-        scaleX: 1, scaleY: 1,
-      });
-    } else {
-      o.set({ scaleX:1, scaleY:1 });
-    }
-    o.setCoords();
+  bind('sel-back', 'click', () => {
+    const o = canvas.getActiveObject();
+    if (o){ canvas.sendToBack(o); markDirty(); }
   });
-  syncSelectionPanel();
-  toast('Size reset');
-};
-$('sel-front').onclick = () => {
-  const o = canvas.getActiveObject();
-  if (o){ canvas.bringToFront(o); markDirty(); }
-};
-$('sel-back').onclick = () => {
-  const o = canvas.getActiveObject();
-  if (o){ canvas.sendToBack(o); markDirty(); }
-};
-$('sel-copy').onclick = () => copySelection();
-$('sel-paste').onclick = () => pasteClipboard();
-$('sel-dup').onclick = duplicateSel;
-$('sel-del').onclick = deleteSel;
+  bind('sel-copy', 'click', () => copySelection());
+  bind('sel-paste', 'click', () => pasteClipboard());
+  bind('sel-dup', 'click', () => duplicateSel());
+  bind('sel-del', 'click', () => deleteSel());
+}
 
 /* =====================================================================
-   16. COPY / PASTE
+   17. COPY / PASTE
    ===================================================================== */
 function copySelection(){
-  const objs = canvas.getActiveObjects();
+  const objs = getEditableTargets();
   if (!objs.length){ toast('Nothing selected', 'warn'); return false; }
   clipboard = [];
   let pending = objs.length;
@@ -2149,13 +2203,10 @@ function pasteClipboard(){
       c.set({
         left: (src.left || 0) + clipboardOffset,
         top:  (src.top  || 0) + clipboardOffset,
-        perPixelTargetFind: true,
-        padding: 2,
-        evented: true,
-        selectable: true,
-        strokeUniform: true,
+        evented: true, selectable: true, strokeUniform: true,
         _uid: uid(),
       });
+      makeHitFriendly(c);
       c.setCoords();
       canvas.add(c);
       pasted.push(c);
@@ -2173,7 +2224,7 @@ function pasteClipboard(){
 function cutSelection(){
   if (!copySelection()) return;
   setTimeout(() => {
-    const objs = canvas.getActiveObjects();
+    const objs = getEditableTargets();
     objs.forEach(o => canvas.remove(o));
     canvas.discardActiveObject();
     canvas.renderAll();
@@ -2183,17 +2234,17 @@ function cutSelection(){
 }
 
 /* =====================================================================
-   17. HISTORY
+   18. HISTORY
    ===================================================================== */
 const MAX_HISTORY = 80, MAX_BYTES = 4_000_000;
 function serialize(){
   try {
     return JSON.stringify({
-      v: 5,
+      v: 6,
       canvas: { w: canvas.getWidth(), h: canvas.getHeight() },
       fabric: canvas.toJSON(CUSTOM_PROPS),
     });
-  } catch(e){ return '{"v":5,"fabric":{"objects":[]}}'; }
+  } catch(e){ return '{"v":6,"fabric":{"objects":[]}}'; }
 }
 let saveTimer;
 function markDirty(){
@@ -2232,7 +2283,8 @@ function applySnapshot(j){
       if (bg) canvas.setBackgroundImage(bg, canvas.renderAll.bind(canvas));
       canvas.forEachObject(o => {
         o.evented = true;
-        o.set({ perPixelTargetFind:true, padding:2, strokeUniform: true });
+        o.set({ strokeUniform: true });
+        makeHitFriendly(o);
         if (!o._uid) o._uid = uid();
       });
       canvas.renderAll();
@@ -2243,25 +2295,25 @@ function applySnapshot(j){
 }
 
 /* =====================================================================
-   18. ACTIONS
+   19. ACTIONS
    ===================================================================== */
 function deleteSel(){
-  const objs = canvas.getActiveObjects();
+  const objs = getEditableTargets();
   if (!objs.length){ toast('Nothing selected', 'warn'); return; }
   objs.forEach(o => canvas.remove(o));
   canvas.discardActiveObject();
   refreshPanels(); syncSelectionPanel(); toast('Deleted ' + objs.length);
 }
 function duplicateSel(){
-  const objs = canvas.getActiveObjects();
+  const objs = getEditableTargets();
   if (!objs.length){ toast('Nothing selected', 'warn'); return; }
   const newOnes = [];
   let pending = objs.length;
   objs.forEach(o => {
     o.clone(c => {
       c.set({ left:(o.left||0)+20, top:(o.top||0)+20,
-              perPixelTargetFind:true, padding:2, strokeUniform:true,
-              _uid: uid() });
+              strokeUniform:true, _uid: uid() });
+      makeHitFriendly(c);
       canvas.add(c);
       newOnes.push(c);
       if (--pending === 0){
@@ -2273,7 +2325,7 @@ function duplicateSel(){
       }
     }, CUSTOM_PROPS);
   });
-  toast('Duplicated');
+  toast('Duplicated', 'ok');
 }
 function rotate90(){
   const o = canvas.getActiveObject();
@@ -2299,7 +2351,7 @@ function clearAll(){
 }
 
 /* =====================================================================
-   19. IMAGE
+   20. IMAGE
    ===================================================================== */
 const MAX_IMAGE_DIM = 4096;
 function downscaleIfNeeded(dataUrl){
@@ -2384,7 +2436,7 @@ document.addEventListener('drop', e => {
 });
 
 /* =====================================================================
-   20. VIEW
+   21. VIEW
    ===================================================================== */
 function applyView(){
   $('canvas-holder').style.transform =
@@ -2433,7 +2485,7 @@ window.addEventListener('mousemove', e => {
 });
 
 /* =====================================================================
-   21. PANELS
+   22. PANELS
    ===================================================================== */
 function refreshPanels(){ updateHud(); updateStorageInfo(); }
 function updateHud(){
@@ -2453,7 +2505,7 @@ function updateStorageInfo(){
 }
 
 /* =====================================================================
-   22. EXPORT
+   23. EXPORT
    ===================================================================== */
 function download(blob, name){
   const a = document.createElement('a');
@@ -2477,14 +2529,14 @@ function exportPNG(scale){
     canvas.renderAll();
     fetch(url).then(r => r.blob()).then(b => {
       download(b, `site_layout_${scale}x_${Date.now()}.png`);
-      toast(`PNG exported at ${scale}×`);
+      toast(`PNG exported at ${scale}×`, 'ok');
     });
   } catch(e){ toast('Export error: ' + e.message, 'err'); }
 }
 function exportJSON(){
   try {
     const data = {
-      version: 5, kind: 'telecom_site_layout',
+      version: 6, kind: 'telecom_site_layout',
       exported: new Date().toISOString(),
       canvas: { width: canvas.getWidth(), height: canvas.getHeight() },
       scale: { m_per_px: parseFloat($('scale-m').value || 0.05),
@@ -2494,7 +2546,7 @@ function exportJSON(){
     };
     download(new Blob([JSON.stringify(data, null, 2)], { type:'application/json' }),
              (fileName || 'site_layout').replace(/\s+/g,'_') + '.json');
-    toast('Layout saved');
+    toast('Layout saved', 'ok');
   } catch(e){ toast('Save failed: ' + e.message, 'err'); }
 }
 function loadJSONDialog(){
@@ -2522,11 +2574,12 @@ function loadJSONDialog(){
           if (bg) canvas.setBackgroundImage(bg, canvas.renderAll.bind(canvas));
           canvas.forEachObject(o => {
             o.evented = true;
-            o.set({ perPixelTargetFind:true, padding:2, strokeUniform: true });
+            o.set({ strokeUniform: true });
+            makeHitFriendly(o);
             if (!o._uid) o._uid = uid();
           });
           canvas.renderAll(); refreshPanels(); syncSelectionPanel();
-          toast('Layout loaded');
+          toast('Layout loaded', 'ok');
         });
       } catch(err){ toast('Load failed: ' + err.message, 'err'); }
     };
@@ -2551,12 +2604,11 @@ function printPlan(){
 }
 
 /* =====================================================================
-   23. SAVE / RESTORE
+   24. SAVE / RESTORE
    ===================================================================== */
 function saveLocal(){
   if (!Storage.available()) return;
   Storage.set(Storage.KEY, serialize());
-  Storage.set(Storage.KEY_CTR, '0');
   updateStorageInfo();
 }
 function loadLocal(){
@@ -2571,19 +2623,20 @@ function loadLocal(){
     canvas.loadFromJSON(fab, () => {
       canvas.forEachObject(o => {
         o.evented = true;
-        o.set({ perPixelTargetFind:true, padding:2, strokeUniform: true });
+        o.set({ strokeUniform: true });
+        makeHitFriendly(o);
         if (!o._uid) o._uid = uid();
       });
       canvas.renderAll(); refreshPanels(); syncSelectionPanel();
       const n = canvas.getObjects().filter(o => !o.isBackground).length;
-      toast(`Restored session (${n} object${n===1?'':'s'})`);
+      toast(`Restored session (${n} object${n===1?'':'s'})`, 'ok');
     });
     return true;
   } catch(e){ toast('Restore failed', 'err'); return false; }
 }
 
 /* =====================================================================
-   24. KEYBOARD
+   25. KEYBOARD
    ===================================================================== */
 document.addEventListener('keydown', e => {
   const editing = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
@@ -2628,6 +2681,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'escape'){
     if (polyPreview) finalizePolyline();
     pendingStencil = null; pendingLabelId = null;
+    hidePendingBanner();
     canvas.discardActiveObject(); canvas.renderAll();
     syncSelectionPanel();
   }
@@ -2644,7 +2698,7 @@ window.addEventListener('blur', () => {
 });
 
 /* =====================================================================
-   25. DIAGNOSTICS
+   26. DIAGNOSTICS
    ===================================================================== */
 function runDiagnostics(){
   const lines = [
@@ -2656,7 +2710,7 @@ function runDiagnostics(){
     'Storage bytes: ' + Storage.bytes(),
     'Canvas: ' + canvas.getWidth()+'×'+canvas.getHeight(),
     'Objects: ' + canvas.getObjects().length,
-    'Stretchable: ' + canvas.getObjects().filter(o=>o._stretchable).length,
+    'Active: ' + (canvas.getActiveObject()? canvas.getActiveObject().type : 'none'),
     'Clipboard: ' + clipboard.length,
     'Undo: ' + undoStack.length + ' / Redo: ' + redoStack.length,
     'UA: ' + navigator.userAgent,
@@ -2665,12 +2719,12 @@ function runDiagnostics(){
   console.log(txt);
   try {
     download(new Blob([txt], { type:'text/plain' }), 'diagnostics_'+Date.now()+'.txt');
-    toast('Diagnostics downloaded');
+    toast('Diagnostics downloaded', 'ok');
   } catch(e){ toast('See console', 'warn'); }
 }
 
 /* =====================================================================
-   26. TOOLBAR BINDINGS
+   27. TOOLBAR BINDINGS
    ===================================================================== */
 $('tb-new').onclick = () => {
   if (!confirm('New site plan? Unsaved work will be lost.')) return;
@@ -2680,7 +2734,7 @@ $('tb-new').onclick = () => {
   clipboard = [];
   fileName = 'Untitled Site Plan'; $('file-label').textContent = fileName;
   fitView(); refreshPanels(); syncSelectionPanel();
-  toast('New plan started');
+  toast('New plan started', 'ok');
 };
 $('tb-load-json').onclick = loadJSONDialog;
 $('tb-save-json').onclick = exportJSON;
@@ -2713,8 +2767,8 @@ $('show-grid').onchange   = drawGridOverlay;
 $('btn-backup').onclick = exportJSON;
 $('btn-reset').onclick = () => {
   if (!confirm('Reset session?')) return;
-  Storage.del(Storage.KEY); Storage.del(Storage.KEY_CTR);
-  toast('Session reset'); updateStorageInfo();
+  Storage.del(Storage.KEY);
+  toast('Session reset', 'ok'); updateStorageInfo();
 };
 function buildPalette(){
   const wrap = $('palette');
@@ -2734,7 +2788,7 @@ function buildPalette(){
 }
 
 /* =====================================================================
-   27. HEIGHT SYNC
+   28. HEIGHT SYNC
    ===================================================================== */
 function syncFrameHeight(){
   try {
@@ -2750,7 +2804,7 @@ window.addEventListener('resize', syncFrameHeight);
 setInterval(syncFrameHeight, 3000);
 
 /* =====================================================================
-   28. BOOT
+   29. BOOT
    ===================================================================== */
 (async function boot(){
   try {
@@ -2761,6 +2815,8 @@ setInterval(syncFrameHeight, 3000);
     initCanvas();
     tightenSelectionBoxes();
     buildPalette();
+    bindPropertyControls();   // ★ bind panel controls AFTER canvas exists
+
     const hint = document.getElementById('drop-hint');
     if (hint) hint.remove();
 
@@ -2770,7 +2826,7 @@ setInterval(syncFrameHeight, 3000);
       loadLocal();
       Boot.ready();
       syncSelectionPanel();
-      toast('Ready — stretch fences & pads without thickening', 'ok');
+      toast('Ready — pick a stencil and click canvas to place', 'ok');
     }, 200);
   } catch(e){
     console.error('[boot]', e);
