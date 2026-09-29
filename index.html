@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Telecom Site Layout Studio</title>
+<script src="https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js"></script>
+<style>
+  *{box-sizing:border-box;user-select:none}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b1220;
+    color:#e2e8f0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+  #wrap{display:flex;height:100vh}
+
+  /* LEFT PANEL */
+  #left{width:240px;background:#131a2b;padding:10px;overflow-y:auto;
+    border-right:1px solid #1f2a44;flex-shrink:0}
+  #left h3{margin:10px 0 6px;font-size:.7rem;text-transform:uppercase;
+    letter-spacing:.08em;color:#7c8db5;font-weight:700}
+  #left h3:first-child{margin-top:0}
+  .btn{display:flex;align-items:center;gap:6px;width:100%;padding:8px 10px;
+    margin:3px 0;background:#1c2640;color:#e2e8f0;border:1px solid #2a3a5c;
+    border-radius:6px;font-size:.8rem;cursor:pointer;font-family:inherit;
+    text-align:left;transition:.1s;font-weight:500}
+  .btn:hover{background:#243256;border-color:#3b4d75}
+  .btn.active{background:linear-gradient(135deg,#2563eb,#7c3aed);
+    border-color:transparent;color:#fff;font-weight:600;
+    box-shadow:0 3px 10px rgba(99,102,241,.35)}
+  .stencil{font-size:.75rem;padding:7px 9px}
+
+  /* CENTER */
+  #center{flex:1;position:relative;overflow:auto;background:#0a1020;
+    padding:20px;display:flex;align-items:flex-start;justify-content:center}
+  #canvas-holder{box-shadow:0 10px 40px rgba(0,0,0,.6);background:#fff}
+
+  /* RIGHT PANEL */
+  #right{width:250px;background:#131a2b;padding:10px;overflow-y:auto;
+    border-left:1px solid #1f2a44;flex-shrink:0}
+  #right h3{margin:10px 0 6px;font-size:.7rem;text-transform:uppercase;
+    letter-spacing:.08em;color:#7c8db5;font-weight:700}
+  #right h3:first-child{margin-top:0}
+  .row{display:flex;gap:4px}
+  .row .btn{flex:1;justify-content:center;text-align:center}
+  label{display:block;font-size:.7rem;color:#8b9dc3;margin:6px 0 2px;
+    display:flex;justify-content:space-between;align-items:center}
+  label span.v{color:#a5b4fc;font-weight:600}
+  input[type="color"]{width:100%;height:28px;border:none;background:transparent;
+    cursor:pointer;border-radius:5px}
+  input[type="range"]{width:100%;accent-color:#6366f1}
+  input[type="text"],input[type="number"]{width:100%;padding:5px 8px;border-radius:5px;
+    border:1px solid #2a3a5c;background:#0b1220;color:#e2e8f0;font-size:.78rem;
+    font-family:inherit}
+  input:focus{outline:none;border-color:#6366f1;
+    box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+
+  /* UI OVERLAYS */
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);
+    background:#1c2640;border:1px solid #3b4d75;padding:10px 18px;border-radius:8px;
+    font-size:.8rem;transition:transform .2s;z-index:999;pointer-events:none;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:80vw}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+  #toast.err{background:#3b1212;border-color:#7f1d1d;color:#fecaca}
+  #toast.ok{background:#0f2417;border-color:#15803d;color:#bbf7d0}
+
+  #status{position:fixed;top:8px;right:12px;background:rgba(19,26,43,.95);
+    border:1px solid #2a3a5c;padding:5px 10px;border-radius:6px;font-size:.7rem;
+    color:#a5b4fc;font-family:ui-monospace,monospace;z-index:100}
+  .hint{font-size:.7rem;color:#66748f;padding:8px;background:#0b1220;
+    border-radius:5px;border:1px dashed #2a3a5c;line-height:1.5}
+
+  #banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);
+    background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;
+    padding:8px 18px;border-radius:10px;font-size:.8rem;font-weight:600;
+    z-index:40;box-shadow:0 6px 20px rgba(99,102,241,.45);display:none;
+    pointer-events:none}
+  #banner.show{display:block}
+</style>
+</head>
+<body>
+<div id="wrap">
+
+  <aside id="left">
+    <h3>Tools</h3>
+    <button class="btn active" data-tool="select">🖱️ Select</button>
+    <button class="btn" data-tool="line">📏 Line</button>
+    <button class="btn" data-tool="rect">⬛ Rectangle</button>
+    <button class="btn" data-tool="circle">⭕ Circle</button>
+    <button class="btn" data-tool="text">🔤 Text</button>
+    <button class="btn" data-tool="erase">🧹 Eraser</button>
+
+    <h3>Stencils</h3>
+    <div id="stencil-list"></div>
+  </aside>
+
+  <main id="center">
+    <div id="canvas-holder"><canvas id="c"></canvas></div>
+  </main>
+
+  <aside id="right">
+    <h3>New Shape Style</h3>
+    <label>Stroke color</label>
+    <input type="color" id="new-stroke" value="#ef4444">
+    <label>Stroke width <span class="v" id="new-sw-v">3px</span></label>
+    <input type="range" id="new-stroke-w" min="1" max="20" value="3">
+    <label>Fill color</label>
+    <input type="color" id="new-fill" value="#94a3b8">
+    <label>Text</label>
+    <input type="text" id="new-text" value="LABEL">
+
+    <h3>Selected Object</h3>
+    <div id="sel-empty" class="hint">Click an object on the canvas to edit it.</div>
+    <div id="sel-panel" style="display:none">
+      <div style="font-size:.7rem;color:#a5b4fc;margin-bottom:6px">
+        Type: <span id="sel-type" style="font-family:monospace">-</span>
+      </div>
+
+      <label>Stroke color</label>
+      <input type="color" id="s-stroke">
+      <label>Stroke width <span class="v" id="s-sw-v">2px</span></label>
+      <input type="range" id="s-stroke-w" min="0" max="30" value="2">
+
+      <label>Fill color</label>
+      <input type="color" id="s-fill">
+      <label><input type="checkbox" id="s-fill-on" style="width:auto">
+        Fill enabled</label>
+
+      <label>Opacity <span class="v" id="s-op-v">100%</span></label>
+      <input type="range" id="s-opacity" min="5" max="100" value="100">
+
+      <label>Rotation <span class="v" id="s-ang-v">0°</span></label>
+      <input type="range" id="s-angle" min="-180" max="180" value="0">
+
+      <label>Position (X / Y)</label>
+      <div class="row">
+        <input type="number" id="s-x" placeholder="X" step="1">
+        <input type="number" id="s-y" placeholder="Y" step="1">
+      </div>
+
+      <label>Text</label>
+      <input type="text" id="s-text" placeholder="(not a text object)">
+
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="s-dup">📑 Duplicate</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="s-front">⬆ Front</button>
+        <button class="btn" id="s-back">⬇ Back</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="s-del" style="background:#3b1212;border-color:#7f1d1d;color:#fecaca">
+          🗑️ Delete
+        </button>
+      </div>
+    </div>
+
+    <h3>Actions</h3>
+    <div class="row">
+      <button class="btn" id="undo">↩️ Undo</button>
+      <button class="btn" id="redo">↪️ Redo</button>
+    </div>
+    <button class="btn" id="clear">💥 Clear all</button>
+    <button class="btn" id="save">💾 Save JSON</button>
+    <button class="btn" id="load">📂 Load JSON</button>
+    <button class="btn" id="png">🖼️ Export PNG</button>
+
+    <h3>Help</h3>
+    <div class="hint">
+      <b style="color:#a5b4fc">Select object:</b> click it<br>
+      <b style="color:#a5b4fc">Drag:</b> click &amp; drag<br>
+      <b style="color:#a5b4fc">Place stencil:</b> click it, then click canvas<br>
+      <b style="color:#a5b4fc">Delete:</b> Del key<br>
+      <b style="color:#a5b4fc">Undo:</b> Ctrl+Z
+    </div>
+  </aside>
+</div>
+
+<div id="toast"></div>
+<div id="status">booting…</div>
+<div id="banner">Click canvas to place: <span id="banner-name"></span></div>
+
+<script>
+/* =====================================================================
+   ERROR GUARD
+   ===================================================================== */
+window.addEventListener('error', e => {
+  console.error('[error]', e.message);
+  const s = document.getElementById('status');
+  if (s) s.textContent = 'ERR: ' + e.message;
+});
+
+function toast(msg, kind){
+  const t = document.getElementById('toast');
+  t.className = '';
+  if (kind) t.classList.add(kind);
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._tt);
+  window._tt = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+if (!window.fabric){
+  document.getElementById('status').textContent = 'FABRIC FAILED';
+  document.body.innerHTML = '<div style="padding:60px;color:#f87171;' +
+    'font-family:system-ui;max-width:600px;margin:0 auto">' +
+    '<h2>⚠️ Fabric.js failed to load</h2>' +
+    '<p>Check your internet connection or firewall. ' +
+    'The app needs to reach cdn.jsdelivr.net once.</p>' +
+    '<p>Try a hard refresh: Ctrl+Shift+R (or Cmd+Shift+R on Mac)</p></div>';
+  throw new Error('fabric missing');
+}
+document.getElementById('status').textContent = 'fabric ' + fabric.version + ' ✓';
+
+/* =====================================================================
+   CANVAS
+   ===================================================================== */
+const CW = 1400, CH = 900;
+const canvas = new fabric.Canvas('c', {
+  width: CW, height: CH,
+  backgroundColor: '#ffffff',
+  selection: true,
+  preserveObjectStacking: true,
+});
+
+fabric.Object.prototype.set({
+  transparentCorners: false,
+  cornerColor: '#6366f1',
+  cornerStrokeColor: '#ffffff',
+  cornerSize: 10,
+  cornerStyle: 'circle',
+  borderColor: '#6366f1',
+  borderScaleFactor: 1.5,
+  strokeUniform: true,
+});
+
+/* Grid background */
+(function(){
+  const s = 20;
+  const pc = document.createElement('canvas');
+  pc.width = pc.height = s;
+  const cx = pc.getContext('2d');
+  cx.fillStyle = '#ffffff'; cx.fillRect(0,0,s,s);
+  cx.strokeStyle = '#e5e7eb'; cx.lineWidth = 1;
+  cx.beginPath();
+  cx.moveTo(s-.5,0); cx.lineTo(s-.5,s);
+  cx.moveTo(0,s-.5); cx.lineTo(s,s-.5);
+  cx.stroke();
+  canvas.setBackgroundColor({source: pc, repeat:'repeat'}, canvas.renderAll.bind(canvas));
+})();
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+let currentTool = 'select';
+let drawing = false, startPt = null, activeShape = null;
+let pendingStencil = null;
+let undoStack = [], redoStack = [];
+let clipboard = [];
+
+/* =====================================================================
+   TOOLS
+   ===================================================================== */
+function setTool(t){
+  currentTool = t;
+  pendingStencil = null;
+  hideBanner();
+  document.querySelectorAll('.btn[data-tool]').forEach(b =>
+    b.classList.toggle('active', b.dataset.tool === t));
+  document.querySelectorAll('.stencil').forEach(x => x.classList.remove('active'));
+  canvas.selection = (t === 'select');
+  document.body.style.cursor = (t === 'select') ? 'default' : 'crosshair';
+}
+document.querySelectorAll('.btn[data-tool]').forEach(b => {
+  b.onclick = () => { setTool(b.dataset.tool); toast('Tool: ' + b.dataset.tool); };
+});
+
+/* =====================================================================
+   SNAP
+   ===================================================================== */
+function snap(p){
+  return { x: Math.round(p.x/20)*20, y: Math.round(p.y/20)*20 };
+}
+
+/* =====================================================================
+   MOUSE HANDLERS
+   ===================================================================== */
+canvas.on('mouse:down', opt => {
+  // Priority 1: Stencil placement
+  if (pendingStencil){
+    const p = canvas.getPointer(opt.e);
+    placeStencil(pendingStencil, p.x, p.y);
+    return;
+  }
+
+  // Priority 2: Select tool — Fabric handles everything
+  if (currentTool === 'select') return;
+
+  // Priority 3: Eraser
+  if (currentTool === 'erase'){
+    if (opt.target){ canvas.remove(opt.target); pushHistory(); toast('Erased'); }
+    return;
+  }
+
+  // Priority 4: Text
+  if (currentTool === 'text'){
+    const p = canvas.getPointer(opt.e);
+    const t = new fabric.IText(document.getElementById('new-text').value || 'LABEL', {
+      left: p.x, top: p.y,
+      fill: document.getElementById('new-stroke').value,
+      fontSize: 18, fontWeight: '600',
+      fontFamily: 'system-ui, sans-serif',
+    });
+    canvas.add(t);
+    canvas.setActiveObject(t);
+    pushHistory();
+    toast('Text added', 'ok');
+    return;
+  }
+
+  // Priority 5: Shape drawing — skip if clicked on an object
+  if (opt.target) return;
+
+  const p = snap(canvas.getPointer(opt.e));
+  drawing = true;
+  startPt = p;
+
+  const sc = document.getElementById('new-stroke').value;
+  const sw = parseInt(document.getElementById('new-stroke-w').value) || 3;
+  const fc = document.getElementById('new-fill').value;
+
+  if (currentTool === 'line'){
+    activeShape = new fabric.Line([p.x,p.y,p.x,p.y], {
+      stroke: sc, strokeWidth: sw, selectable: false, evented: false,
+    });
+  } else if (currentTool === 'rect'){
+    activeShape = new fabric.Rect({
+      left: p.x, top: p.y, width: 1, height: 1,
+      fill: fc + '66', stroke: sc, strokeWidth: sw,
+      selectable: false, evented: false,
+    });
+  } else if (currentTool === 'circle'){
+    activeShape = new fabric.Circle({
+      left: p.x, top: p.y, radius: 1,
+      fill: fc + '66', stroke: sc, strokeWidth: sw,
+      selectable: false, evented: false,
+      originX: 'left', originY: 'top',
+    });
+  }
+  if (activeShape) canvas.add(activeShape);
+});
+
+canvas.on('mouse:move', opt => {
+  if (!drawing || !activeShape) return;
+  const p = snap(canvas.getPointer(opt.e));
+
+  if (currentTool === 'line'){
+    activeShape.set({ x2: p.x, y2: p.y });
+  } else if (currentTool === 'rect'){
+    activeShape.set({
+      left: Math.min(startPt.x, p.x),
+      top: Math.min(startPt.y, p.y),
+      width: Math.abs(p.x - startPt.x),
+      height: Math.abs(p.y - startPt.y),
+    });
+  } else if (currentTool === 'circle'){
+    const r = Math.hypot(p.x - startPt.x, p.y - startPt.y);
+    activeShape.set({ left: startPt.x - r, top: startPt.y - r, radius: r });
+  }
+  canvas.requestRenderAll();
+});
+
+canvas.on('mouse:up', () => {
+  if (!drawing) return;
+  drawing = false;
+  if (activeShape){
+    // Reject tiny accidental shapes
+    if (activeShape.type === 'line'){
+      const len = Math.hypot(activeShape.x2 - activeShape.x1,
+                             activeShape.y2 - activeShape.y1);
+      if (len < 3){ canvas.remove(activeShape); activeShape = null; return; }
+    }
+    if (activeShape.type === 'rect' &&
+        (activeShape.width < 3 || activeShape.height < 3)){
+      canvas.remove(activeShape); activeShape = null; return;
+    }
+    if (activeShape.type === 'circle' && activeShape.radius < 3){
+      canvas.remove(activeShape); activeShape = null; return;
+    }
+
+    activeShape.set({ selectable: true, evented: true });
+    canvas.setActiveObject(activeShape);
+    activeShape = null;
+    canvas.requestRenderAll();
+    pushHistory();
+    toast('Shape added', 'ok');
+  }
+});
+
+/* =====================================================================
+   STENCIL LIBRARY
+   ===================================================================== */
+function rect(x,y,w,h,opts){
+  return new fabric.Rect(Object.assign({
+    left:x, top:y, width:w, height:h,
+    fill:'#cbd5e1', stroke:'#0f172a', strokeWidth:1.5,
+  }, opts || {}));
+}
+function line(x1,y1,x2,y2,opts){
+  return new fabric.Line([x1,y1,x2,y2], Object.assign({
+    stroke:'#0f172a', strokeWidth:1.5, strokeLineCap: 'round',
+  }, opts || {}));
+}
+function circle(x,y,r,opts){
+  return new fabric.Circle(Object.assign({
+    left:x, top:y, radius:r,
+    fill:'#334155', stroke:'#0f172a', strokeWidth:1,
+  }, opts || {}));
+}
+function text(s,x,y,size,opts){
+  return new fabric.IText(s, Object.assign({
+    left:x, top:y, fontSize:size || 11, fill:'#0f172a',
+    fontFamily:'system-ui, sans-serif', fontWeight:'700',
+  }, opts || {}));
+}
+function group(objs, label){
+  const g = new fabric.Group(objs, { selectable: true, evented: true });
+  g.stencilLabel = label || '';
+  return g;
+}
+
+const STENCILS = {
+  gate: () => group([
+    rect(0, 0, 20, 20, { fill:'#64748b' }),
+    rect(140, 0, 20, 20, { fill:'#64748b' }),
+    line(20, 10, 140, 10, { strokeWidth: 3 }),
+    text('GATE', 55, 26, 12),
+  ], 'Gate'),
+
+  fence: () => group([
+    rect(0, 0, 200, 12, { fill:'#a8a29e' }),
+    line(0, 6, 200, 6, { stroke:'#44403c' }),
+    text('FENCE', 70, 16, 12),
+  ], 'Fence'),
+
+  cement_fence: () => group([
+    rect(0, 0, 240, 14, { fill:'#a8a29e', stroke:'#44403c', strokeWidth: 2 }),
+    rect(58, -4, 8, 22, { fill:'#78716c', stroke:'#1c1917' }),
+    rect(118, -4, 8, 22, { fill:'#78716c', stroke:'#1c1917' }),
+    rect(178, -4, 8, 22, { fill:'#78716c', stroke:'#1c1917' }),
+    text('CEMENT FENCE', 60, 18, 12),
+  ], 'Cement Fence'),
+
+  cabin: () => group([
+    rect(0, 0, 160, 120, { fill:'#f1f5f9', stroke:'#0f172a', strokeWidth: 2 }),
+    rect(130, 45, 22, 30, { fill:'#94a3b8' }),
+    text('SHELTER', 45, 55, 14),
+  ], 'Shelter'),
+
+  odc: () => group([
+    rect(0, 0, 40, 88, { fill:'#f8fafc', stroke:'#0f172a', strokeWidth: 2 }),
+    line(20, 0, 20, 88, { strokeDashArray: [3,2] }),
+    text('ODC', 5, 40, 11),
+  ], 'ODC'),
+
+  cab1: () => group([
+    rect(0, 0, 20, 88, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth: 2 }),
+    text('1B', 2, 40, 10),
+  ], '1-Bay'),
+
+  cab2: () => group([
+    rect(0, 0, 40, 88, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth: 2 }),
+    line(20, 0, 20, 88, { strokeWidth: 1 }),
+    text('2B', 12, 40, 10),
+  ], '2-Bay'),
+
+  cab3: () => group([
+    rect(0, 0, 60, 88, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth: 2 }),
+    line(20, 0, 20, 88, { strokeWidth: 1 }),
+    line(40, 0, 40, 88, { strokeWidth: 1 }),
+    text('3B', 22, 40, 10),
+  ], '3-Bay'),
+
+  tower4: () => group([
+    rect(0, 0, 160, 160, { fill:'rgba(226,232,240,.4)', stroke:'#0f172a', strokeWidth: 2 }),
+    line(0, 0, 160, 160, { strokeDashArray: [6,4] }),
+    line(160, 0, 0, 160, { strokeDashArray: [6,4] }),
+    rect(-8, -8, 20, 20, { fill:'#94a3b8' }),
+    rect(148, -8, 20, 20, { fill:'#94a3b8' }),
+    rect(-8, 148, 20, 20, { fill:'#94a3b8' }),
+    rect(148, 148, 20, 20, { fill:'#94a3b8' }),
+    circle(76, 76, 8, { fill:'#1e293b' }),
+    text('4-LEG TOWER', 30, 74, 13),
+  ], '4-Leg Tower'),
+
+  tower3: () => {
+    const A = {x:80, y:0}, B = {x:0, y:140}, C = {x:160, y:140};
+    return group([
+      line(A.x,A.y,B.x,B.y,{strokeWidth: 2}),
+      line(B.x,B.y,C.x,C.y,{strokeWidth: 2}),
+      line(C.x,C.y,A.x,A.y,{strokeWidth: 2}),
+      circle(A.x-5, A.y-5, 6),
+      circle(B.x-5, B.y-5, 6),
+      circle(C.x-5, C.y-5, 6),
+      circle(75, 65, 7, { fill:'#1e293b' }),
+      text('3-LEG', 55, 90, 12),
+    ], '3-Leg Tower');
+  },
+
+  towerfoot: () => group([
+    rect(0, 0, 40, 40, { fill:'#cbd5e1', stroke:'#0f172a', strokeWidth: 1.5 }),
+    circle(17, 17, 5, { fill:'#334155' }),
+    text('FOOT', 2, 44, 10),
+  ], 'Footing'),
+
+  guy: () => group([
+    circle(0, 0, 18, { fill:'#fef3c7', stroke:'#a16207', strokeWidth: 1.5 }),
+    circle(14, 14, 4, { fill:'#a16207' }),
+  ], 'Guy Anchor'),
+
+  genset: () => group([
+    rect(0, 0, 200, 120, { fill:'#cbd5e1', stroke:'#334155', strokeDashArray:[4,3] }),
+    rect(20, 30, 160, 60, { fill:'#fef3c7', stroke:'#78350f', strokeWidth: 2 }),
+    rect(155, 40, 20, 40, { fill:'#fdba74', stroke:'#7c2d12' }),
+    text('GENSET', 65, 55, 14),
+  ], 'Generator'),
+
+  fuel: () => group([
+    circle(0, 0, 40, { fill:'#fecaca', stroke:'#7f1d1d', strokeWidth: 2 }),
+    circle(8, 8, 24, { fill:'transparent', stroke:'#7f1d1d', strokeDashArray:[3,2] }),
+    text('FUEL', 10, 20, 12),
+  ], 'Fuel Tank'),
+
+  transformer: () => group([
+    rect(0, 0, 60, 60, { fill:'#fef3c7', stroke:'#78350f', strokeWidth: 2 }),
+    circle(20, -5, 4, { fill:'#dc2626' }),
+    circle(40, -5, 4, { fill:'#dc2626' }),
+    circle(20, 60, 4, { fill:'#2563eb' }),
+    circle(40, 60, 4, { fill:'#2563eb' }),
+    text('TX', 20, 22, 13),
+  ], 'Transformer'),
+
+  battery: () => group([
+    rect(0, 0, 160, 30, { fill:'#dbeafe', stroke:'#1e3a8a', strokeWidth: 1.5 }),
+    line(40, 0, 40, 30, { stroke:'#1e3a8a' }),
+    line(80, 0, 80, 30, { stroke:'#1e3a8a' }),
+    line(120, 0, 120, 30, { stroke:'#1e3a8a' }),
+    text('BATTERY', 40, 34, 11),
+  ], 'Battery Bank'),
+
+  aircon: () => group([
+    rect(0, 0, 60, 40, { fill:'#e0f2fe', stroke:'#0369a1', strokeWidth: 1.5 }),
+    circle(30, 15, 12, { fill:'#bae6fd', stroke:'#0369a1' }),
+    circle(25, 10, 3, { fill:'#0369a1' }),
+    text('AC', 22, 44, 11),
+  ], 'Aircon'),
+
+  basepad: () => group([
+    rect(0, 0, 120, 120, { fill:'#cbd5e1', stroke:'#334155', strokeWidth: 2 }),
+    line(0, 0, 15, 0, { strokeWidth: 3 }),
+    line(0, 0, 0, 15, { strokeWidth: 3 }),
+    line(120, 0, 105, 0, { strokeWidth: 3 }),
+    line(120, 0, 120, 15, { strokeWidth: 3 }),
+    line(0, 120, 15, 120, { strokeWidth: 3 }),
+    line(0, 120, 0, 105, { strokeWidth: 3 }),
+    line(120, 120, 105, 120, { strokeWidth: 3 }),
+    line(120, 120, 120, 105, { strokeWidth: 3 }),
+    text('BASEPAD', 30, 55, 13),
+  ], 'Cement Basepad'),
+
+  basepad_gen: () => group([
+    rect(0, 0, 160, 90, { fill:'rgba(254,243,199,.7)', stroke:'#78350f', strokeWidth: 2 }),
+    text('GEN PAD', 40, 38, 13),
+  ], 'Generator Basepad'),
+
+  cabletray: () => group([
+    line(0, 0, 200, 0, { stroke:'#475569', strokeWidth: 3 }),
+    line(0, 14, 200, 14, { stroke:'#475569', strokeWidth: 3 }),
+    ...Array.from({length: 20}, (_, i) =>
+      line(i*10 + 5, 0, i*10 + 5, 14, { stroke:'#475569' })),
+    text('CABLE TRAY', 55, 18, 12),
+  ], 'Cable Tray'),
+
+  openrack: () => group([
+    rect(0, 0, 30, 80, { fill:'#f8fafc', stroke:'#0f172a', strokeWidth: 1.5 }),
+    line(3, 3, 3, 77, { strokeWidth: 1 }),
+    line(27, 3, 27, 77, { strokeWidth: 1 }),
+    text('RACK', 2, 84, 11),
+  ], 'Open Rack'),
+
+  hframe: () => group([
+    rect(0, 0, 60, 100, { fill:'#e2e8f0', stroke:'#0f172a' }),
+    line(0, 50, 60, 50, { strokeWidth: 3 }),
+    circle(15, 20, 6, { fill:'#fbbf24' }),
+    circle(45, 20, 6, { fill:'#fbbf24' }),
+    circle(15, 80, 6, { fill:'#fbbf24' }),
+    circle(45, 80, 6, { fill:'#fbbf24' }),
+    text('H-FRAME', 5, 104, 11),
+  ], 'H-Frame'),
+
+  grass: () => group([
+    rect(0, 0, 200, 150, {
+      fill:'rgba(132,204,22,.2)', stroke:'#65a30d',
+      strokeDashArray:[6,4]
+    }),
+    text('GRASS AREA', 55, 70, 14, { opacity: 0.55 }),
+  ], 'Grass'),
+
+  cement: () => group([
+    rect(0, 0, 200, 150, {
+      fill:'rgba(203,213,225,.6)', stroke:'#64748b',
+      strokeDashArray:[8,4]
+    }),
+    line(100, 0, 100, 150, { strokeDashArray:[5,5], stroke:'#94a3b8' }),
+    line(0, 75, 200, 75, { strokeDashArray:[5,5], stroke:'#94a3b8' }),
+    text('CEMENT SLAB', 50, 70, 14, { opacity: 0.5 }),
+  ], 'Cement Slab'),
+
+  gravel: () => group([
+    rect(0, 0, 150, 100, {
+      fill:'rgba(168,162,158,.3)', stroke:'#78716c'
+    }),
+    ...Array.from({length: 30}, (_, i) =>
+      circle((i%10)*15 + 5, Math.floor(i/10)*30 + 10, 2,
+        { fill:'#78716c', stroke:'none' })),
+    text('GRAVEL', 45, 46, 13),
+  ], 'Gravel Pad'),
+
+  wall: () => group([
+    rect(0, 0, 200, 12, { fill:'#a8a29e', stroke:'#44403c', strokeWidth: 2 }),
+    line(50, 0, 50, 12, { stroke:'#44403c' }),
+    line(100, 0, 100, 12, { stroke:'#44403c' }),
+    line(150, 0, 150, 12, { stroke:'#44403c' }),
+    text('WALL', 82, 16, 12),
+  ], 'Wall'),
+
+  label_note: () => {
+    const t = new fabric.IText('NOTE', {
+      left: 0, top: 0, fontSize: 16, fill: '#334155',
+      fontFamily: 'system-ui, sans-serif', fontWeight: 700,
+      backgroundColor: 'rgba(241,245,249,.95)', padding: 4,
+    });
+    return t;
+  },
+};
+
+function buildStencilList(){
+  const wrap = document.getElementById('stencil-list');
+  wrap.innerHTML = '';
+  Object.keys(STENCILS).forEach(id => {
+    const b = document.createElement('button');
+    b.className = 'btn stencil';
+    b.textContent = id.replace(/_/g, ' ');
+    b.onclick = () => {
+      document.querySelectorAll('.btn').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.btn[data-tool]').forEach(x =>
+        x.classList.toggle('active', x.dataset.tool === 'select'));
+      b.classList.add('active');
+      currentTool = 'select';
+      canvas.selection = true;
+      pendingStencil = id;
+      showBanner(id.replace(/_/g, ' '));
+      toast('Click canvas to place: ' + id);
+    };
+    wrap.appendChild(b);
+  });
+}
+buildStencilList();
+
+function showBanner(name){
+  document.getElementById('banner-name').textContent = name;
+  document.getElementById('banner').classList.add('show');
+}
+function hideBanner(){
+  document.getElementById('banner').classList.remove('show');
+}
+
+/* =====================================================================
+   PLACEMENT
+   ===================================================================== */
+function placeStencil(id, x, y){
+  const maker = STENCILS[id];
+  if (!maker){ toast('Unknown stencil', 'err'); pendingStencil = null; hideBanner(); return; }
+  try {
+    const obj = maker();
+    obj.set({ left: x, top: y, originX: 'center', originY: 'center' });
+    canvas.add(obj);
+    canvas.setActiveObject(obj);
+    canvas.requestRenderAll();
+    pushHistory();
+    toast('Placed: ' + id, 'ok');
+  } catch(e){
+    console.error(e);
+    toast('Failed: ' + e.message, 'err');
+  }
+  pendingStencil = null;
+  hideBanner();
+  document.querySelectorAll('.stencil').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.btn[data-tool]').forEach(x =>
+    x.classList.toggle('active', x.dataset.tool === 'select'));
+  updatePanel();
+}
+
+/* =====================================================================
+   SELECTION PANEL — LIVE PROPERTY EDITING
+   ===================================================================== */
+const els = {
+  empty:   document.getElementById('sel-empty'),
+  panel:   document.getElementById('sel-panel'),
+  type:    document.getElementById('sel-type'),
+  stroke:  document.getElementById('s-stroke'),
+  strokeW: document.getElementById('s-stroke-w'),
+  swV:     document.getElementById('s-sw-v'),
+  fill:    document.getElementById('s-fill'),
+  fillOn:  document.getElementById('s-fill-on'),
+  opacity: document.getElementById('s-opacity'),
+  opV:     document.getElementById('s-op-v'),
+  angle:   document.getElementById('s-angle'),
+  angV:    document.getElementById('s-ang-v'),
+  x:       document.getElementById('s-x'),
+  y:       document.getElementById('s-y'),
+  text:    document.getElementById('s-text'),
+  dup:     document.getElementById('s-dup'),
+  del:     document.getElementById('s-del'),
+  front:   document.getElementById('s-front'),
+  back:    document.getElementById('s-back'),
+};
+
+function hexOf(c){
+  if (!c || typeof c !== 'string') return '#000000';
+  if (c[0] === '#') return c.slice(0,7);
+  const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!m) return '#000000';
+  return '#' + [m[1],m[2],m[3]].map(v => (+v).toString(16).padStart(2,'0')).join('');
+}
+
+function targets(){
+  const a = canvas.getActiveObject();
+  if (!a) return [];
+  if (a.type === 'activeSelection') return a.getObjects();
+  return [a];
+}
+
+/* APPLY: applies a change to selection, and to group children */
+function apply(fn){
+  const list = targets();
+  if (!list.length) return;
+  list.forEach(o => {
+    try { fn(o); } catch(e){ console.warn(e); }
+    if (o.type === 'group' && o._objects){
+      o._objects.forEach(child => {
+        try {
+          if (child.stroke !== undefined || child.fill !== undefined) fn(child);
+        } catch(_){}
+      });
+    }
+  });
+  canvas.requestRenderAll();
+  pushHistory();
+}
+
+/* Wire panel controls — plain .oninput, idempotent */
+els.stroke.oninput = e => {
+  const v = e.target.value;
+  apply(o => { if (o.stroke !== undefined) o.set('stroke', v); });
+};
+els.strokeW.oninput = e => {
+  const v = parseInt(e.target.value);
+  els.swV.textContent = v + 'px';
+  apply(o => { if (o.strokeWidth !== undefined) o.set('strokeWidth', v); });
+};
+els.fill.oninput = e => {
+  const v = e.target.value;
+  apply(o => {
+    if (o.fill !== undefined && o.type !== 'i-text' && o.type !== 'text'){
+      o.set('fill', v);
+    }
+  });
+  els.fillOn.checked = true;
+};
+els.fillOn.onchange = e => {
+  const on = e.target.checked;
+  const v = els.fill.value;
+  apply(o => {
+    if (o.fill === undefined || o.type === 'i-text' || o.type === 'text') return;
+    o.set('fill', on ? v : 'transparent');
+  });
+};
+els.opacity.oninput = e => {
+  const v = parseInt(e.target.value);
+  els.opV.textContent = v + '%';
+  apply(o => o.set('opacity', v / 100));
+};
+els.angle.oninput = e => {
+  const v = parseInt(e.target.value);
+  els.angV.textContent = v + '°';
+  apply(o => { o.rotate(v); o.setCoords(); });
+};
+els.x.onchange = e => {
+  const v = parseFloat(e.target.value) || 0;
+  apply(o => o.set('left', v));
+  updatePanel();
+};
+els.y.onchange = e => {
+  const v = parseFloat(e.target.value) || 0;
+  apply(o => o.set('top', v));
+  updatePanel();
+};
+els.text.oninput = e => {
+  const v = e.target.value;
+  apply(o => {
+    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+      o.set('text', v);
+      if (o.initDimensions) o.initDimensions();
+      o.setCoords();
+    }
+  });
+};
+els.dup.onclick = () => {
+  const list = targets();
+  if (!list.length) return;
+  list.forEach(o => {
+    o.clone(c => {
+      c.set({ left: (o.left||0)+20, top: (o.top||0)+20 });
+      canvas.add(c);
+      canvas.setActiveObject(c);
+    });
+  });
+  canvas.requestRenderAll();
+  pushHistory();
+  toast('Duplicated', 'ok');
+};
+els.del.onclick = () => {
+  const list = targets();
+  list.forEach(o => canvas.remove(o));
+  canvas.discardActiveObject();
+  canvas.requestRenderAll();
+  pushHistory(); updatePanel();
+  toast('Deleted');
+};
+els.front.onclick = () => { const o = canvas.getActiveObject(); if (o){ canvas.bringToFront(o); pushHistory(); } };
+els.back.onclick  = () => { const o = canvas.getActiveObject(); if (o){ canvas.sendToBack(o); pushHistory(); } };
+
+function updatePanel(){
+  const list = targets();
+  if (!list.length){
+    els.empty.style.display = 'block';
+    els.panel.style.display = 'none';
+    return;
+  }
+  els.empty.style.display = 'none';
+  els.panel.style.display = 'block';
+
+  const o = list[0];
+  els.type.textContent = o.type +
+    (list.length > 1 ? ` (+${list.length - 1} more)` : '');
+
+  const setIfFree = (el, val) => { if (document.activeElement !== el) el.value = val; };
+
+  // Representative stroke/fill
+  let stroke = o.stroke, fill = o.fill, sw = o.strokeWidth;
+  if (o.type === 'group' && o._objects){
+    const sc = o._objects.find(c => c.stroke);
+    const fc = o._objects.find(c => c.fill && c.fill !== 'transparent');
+    if (sc) stroke = sc.stroke;
+    if (fc) fill = fc.fill;
+    if (sc && (sw == null || sw === 0)) sw = sc.strokeWidth;
+  }
+
+  setIfFree(els.stroke, hexOf(stroke));
+  const swv = Math.round(sw || 2);
+  setIfFree(els.strokeW, swv);
+  els.swV.textContent = swv + 'px';
+
+  setIfFree(els.fill, hexOf(fill));
+  els.fillOn.checked = !!(fill && fill !== 'transparent' && fill !== '');
+
+  const opv = Math.round((o.opacity == null ? 1 : o.opacity) * 100);
+  setIfFree(els.opacity, opv);
+  els.opV.textContent = opv + '%';
+
+  const ang = Math.round(o.angle || 0);
+  setIfFree(els.angle, ang);
+  els.angV.textContent = ang + '°';
+
+  setIfFree(els.x, Math.round(o.left || 0));
+  setIfFree(els.y, Math.round(o.top || 0));
+
+  if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+    setIfFree(els.text, o.text || '');
+    els.text.disabled = false;
+  } else {
+    if (document.activeElement !== els.text){
+      els.text.value = '';
+      els.text.placeholder = '(not editable)';
+    }
+  }
+}
+
+/* Wire selection events */
+canvas.on('selection:created', updatePanel);
+canvas.on('selection:updated', updatePanel);
+canvas.on('selection:cleared', updatePanel);
+canvas.on('object:modified', () => { updatePanel(); pushHistory(); });
+canvas.on('object:moving', updatePanel);
+canvas.on('object:scaling', updatePanel);
+canvas.on('object:rotating', updatePanel);
+
+/* =====================================================================
+   HISTORY
+   ===================================================================== */
+function serialize(){
+  return JSON.stringify(canvas.toJSON(['stencilLabel','strokeUniform']));
+}
+function pushHistory(){
+  const j = serialize();
+  if (undoStack[undoStack.length - 1] === j) return;
+  undoStack.push(j);
+  if (undoStack.length > 60) undoStack.shift();
+  redoStack = [];
+}
+function undo(){
+  if (undoStack.length < 2){ toast('Nothing to undo'); return; }
+  redoStack.push(undoStack.pop());
+  canvas.loadFromJSON(undoStack[undoStack.length - 1], () => {
+    canvas.renderAll(); updatePanel();
+  });
+  toast('Undo');
+}
+function redo(){
+  if (!redoStack.length){ toast('Nothing to redo'); return; }
+  const j = redoStack.pop();
+  undoStack.push(j);
+  canvas.loadFromJSON(j, () => { canvas.renderAll(); updatePanel(); });
+  toast('Redo');
+}
+document.getElementById('undo').onclick = undo;
+document.getElementById('redo').onclick = redo;
+
+/* =====================================================================
+   ACTIONS
+   ===================================================================== */
+document.getElementById('clear').onclick = () => {
+  if (!confirm('Clear all?')) return;
+  canvas.getObjects().forEach(o => canvas.remove(o));
+  pushHistory(); updatePanel();
+  toast('Cleared');
+};
+
+document.getElementById('save').onclick = () => {
+  const data = canvas.toJSON(['stencilLabel']);
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'site_' + Date.now() + '.json';
+  a.click();
+  toast('Saved', 'ok');
+};
+
+document.getElementById('load').onclick = () => {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json';
+  inp.onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        canvas.loadFromJSON(data, () => {
+          canvas.renderAll(); updatePanel(); pushHistory();
+        });
+        toast('Loaded', 'ok');
+      } catch(err){ toast('Bad JSON', 'err'); }
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+};
+
+document.getElementById('png').onclick = () => {
+  canvas.discardActiveObject();
+  canvas.renderAll();
+  const url = canvas.toDataURL({ format:'png', multiplier: 2, quality: 1 });
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'site_' + Date.now() + '.png';
+  a.click();
+  toast('PNG exported', 'ok');
+};
+
+/* =====================================================================
+   STYLE SLIDERS (top)
+   ===================================================================== */
+document.getElementById('new-stroke-w').oninput = e => {
+  document.getElementById('new-sw-v').textContent = e.target.value + 'px';
+};
+
+/* =====================================================================
+   KEYBOARD
+   ===================================================================== */
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.ctrlKey || e.metaKey){
+    if (e.key === 'z'){ e.preventDefault(); undo(); }
+    if (e.key === 'y'){ e.preventDefault(); redo(); }
+    return;
+  }
+  if (e.key === 'Delete' || e.key === 'Backspace'){
+    e.preventDefault();
+    targets().forEach(o => canvas.remove(o));
+    canvas.discardActiveObject();
+    canvas.renderAll();
+    pushHistory(); updatePanel();
+  }
+  if (e.key === 'Escape'){
+    pendingStencil = null;
+    hideBanner();
+    canvas.discardActiveObject(); canvas.renderAll();
+    updatePanel();
+  }
+  if (e.key === 'v') setTool('select');
+  if (e.key === 'l') setTool('line');
+  if (e.key === 'r') setTool('rect');
+  if (e.key === 'c') setTool('circle');
+  if (e.key === 't') setTool('text');
+  if (e.key === 'e') setTool('erase');
+});
+
+/* =====================================================================
+   BOOT LOG
+   ===================================================================== */
+console.log('[studio] ready. Stencils:', Object.keys(STENCILS).join(', '));
+updatePanel();
+setTimeout(() => toast('Ready — pick a stencil or tool', 'ok'), 300);
+</script>
+</body>
+</html>
