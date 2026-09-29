@@ -11,10 +11,9 @@
     color:#e2e8f0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
   #wrap{display:flex;height:100vh}
 
-  /* LEFT PANEL */
   #left{width:240px;background:#131a2b;padding:10px;overflow-y:auto;
     border-right:1px solid #1f2a44;flex-shrink:0}
-  #left h3{margin:10px 0 6px;font-size:.7rem;text-transform:uppercase;
+  #left h3{margin:12px 0 6px;font-size:.7rem;text-transform:uppercase;
     letter-spacing:.08em;color:#7c8db5;font-weight:700}
   #left h3:first-child{margin-top:0}
   .btn{display:flex;align-items:center;gap:6px;width:100%;padding:8px 10px;
@@ -27,32 +26,31 @@
     box-shadow:0 3px 10px rgba(99,102,241,.35)}
   .stencil{font-size:.75rem;padding:7px 9px}
 
-  /* CENTER */
   #center{flex:1;position:relative;overflow:auto;background:#0a1020;
     padding:20px;display:flex;align-items:flex-start;justify-content:center}
-  #canvas-holder{box-shadow:0 10px 40px rgba(0,0,0,.6);background:#fff}
+  #canvas-holder{box-shadow:0 10px 40px rgba(0,0,0,.6);background:#fff;
+    position:relative}
 
-  /* RIGHT PANEL */
-  #right{width:250px;background:#131a2b;padding:10px;overflow-y:auto;
+  #right{width:260px;background:#131a2b;padding:10px;overflow-y:auto;
     border-left:1px solid #1f2a44;flex-shrink:0}
-  #right h3{margin:10px 0 6px;font-size:.7rem;text-transform:uppercase;
+  #right h3{margin:12px 0 6px;font-size:.7rem;text-transform:uppercase;
     letter-spacing:.08em;color:#7c8db5;font-weight:700}
   #right h3:first-child{margin-top:0}
   .row{display:flex;gap:4px}
   .row .btn{flex:1;justify-content:center;text-align:center}
   label{display:block;font-size:.7rem;color:#8b9dc3;margin:6px 0 2px;
     display:flex;justify-content:space-between;align-items:center}
-  label span.v{color:#a5b4fc;font-weight:600}
+  label span.v{color:#a5b4fc;font-weight:600;font-family:ui-monospace,monospace}
   input[type="color"]{width:100%;height:28px;border:none;background:transparent;
     cursor:pointer;border-radius:5px}
   input[type="range"]{width:100%;accent-color:#6366f1}
-  input[type="text"],input[type="number"]{width:100%;padding:5px 8px;border-radius:5px;
-    border:1px solid #2a3a5c;background:#0b1220;color:#e2e8f0;font-size:.78rem;
-    font-family:inherit}
-  input:focus{outline:none;border-color:#6366f1;
+  input[type="text"],input[type="number"],textarea{width:100%;padding:5px 8px;
+    border-radius:5px;border:1px solid #2a3a5c;background:#0b1220;
+    color:#e2e8f0;font-size:.78rem;font-family:inherit}
+  input:focus,textarea:focus{outline:none;border-color:#6366f1;
     box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+  textarea{resize:vertical;min-height:44px}
 
-  /* UI OVERLAYS */
   #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);
     background:#1c2640;border:1px solid #3b4d75;padding:10px 18px;border-radius:8px;
     font-size:.8rem;transition:transform .2s;z-index:999;pointer-events:none;
@@ -64,15 +62,19 @@
   #status{position:fixed;top:8px;right:12px;background:rgba(19,26,43,.95);
     border:1px solid #2a3a5c;padding:5px 10px;border-radius:6px;font-size:.7rem;
     color:#a5b4fc;font-family:ui-monospace,monospace;z-index:100}
+
   .hint{font-size:.7rem;color:#66748f;padding:8px;background:#0b1220;
     border-radius:5px;border:1px dashed #2a3a5c;line-height:1.5}
 
   #banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);
     background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;
-    padding:8px 18px;border-radius:10px;font-size:.8rem;font-weight:600;
+    padding:9px 20px;border-radius:10px;font-size:.82rem;font-weight:600;
     z-index:40;box-shadow:0 6px 20px rgba(99,102,241,.45);display:none;
     pointer-events:none}
   #banner.show{display:block}
+
+  .sel-field{display:none}
+  .sel-field.on{display:block}
 </style>
 </head>
 <body>
@@ -80,7 +82,7 @@
 
   <aside id="left">
     <h3>Tools</h3>
-    <button class="btn active" data-tool="select">🖱️ Select</button>
+    <button class="btn active" data-tool="select">🖱️ Select / Move</button>
     <button class="btn" data-tool="line">📏 Line</button>
     <button class="btn" data-tool="rect">⬛ Rectangle</button>
     <button class="btn" data-tool="circle">⭕ Circle</button>
@@ -107,45 +109,60 @@
     <input type="text" id="new-text" value="LABEL">
 
     <h3>Selected Object</h3>
-    <div id="sel-empty" class="hint">Click an object on the canvas to edit it.</div>
+    <div id="sel-empty" class="hint">Click an object on the canvas to edit it here.</div>
     <div id="sel-panel" style="display:none">
       <div style="font-size:.7rem;color:#a5b4fc;margin-bottom:6px">
-        Type: <span id="sel-type" style="font-family:monospace">-</span>
+        Type: <span id="sel-type" style="font-family:ui-monospace,monospace">-</span>
       </div>
 
-      <label>Stroke color</label>
-      <input type="color" id="s-stroke">
-      <label>Stroke width <span class="v" id="s-sw-v">2px</span></label>
-      <input type="range" id="s-stroke-w" min="0" max="30" value="2">
-
-      <label>Fill color</label>
-      <input type="color" id="s-fill">
-      <label><input type="checkbox" id="s-fill-on" style="width:auto">
-        Fill enabled</label>
-
-      <label>Opacity <span class="v" id="s-op-v">100%</span></label>
-      <input type="range" id="s-opacity" min="5" max="100" value="100">
-
-      <label>Rotation <span class="v" id="s-ang-v">0°</span></label>
-      <input type="range" id="s-angle" min="-180" max="180" value="0">
-
-      <label>Position (X / Y)</label>
-      <div class="row">
-        <input type="number" id="s-x" placeholder="X" step="1">
-        <input type="number" id="s-y" placeholder="Y" step="1">
+      <div class="sel-field on" id="f-stroke">
+        <label>Stroke color</label>
+        <input type="color" id="s-stroke">
       </div>
-
-      <label>Text</label>
-      <input type="text" id="s-text" placeholder="(not a text object)">
+      <div class="sel-field on" id="f-strokew">
+        <label>Stroke width <span class="v" id="s-sw-v">2px</span></label>
+        <input type="range" id="s-stroke-w" min="0" max="30" value="2">
+      </div>
+      <div class="sel-field on" id="f-fill">
+        <label>Fill color</label>
+        <input type="color" id="s-fill">
+        <label><input type="checkbox" id="s-fill-on" style="width:auto">
+          Fill enabled</label>
+      </div>
+      <div class="sel-field on" id="f-opacity">
+        <label>Opacity <span class="v" id="s-op-v">100%</span></label>
+        <input type="range" id="s-opacity" min="5" max="100" value="100">
+      </div>
+      <div class="sel-field on" id="f-angle">
+        <label>Rotation <span class="v" id="s-ang-v">0°</span></label>
+        <input type="range" id="s-angle" min="-180" max="180" value="0">
+      </div>
+      <div class="sel-field on" id="f-pos">
+        <label>Position (X / Y)</label>
+        <div class="row">
+          <input type="number" id="s-x" placeholder="X" step="1">
+          <input type="number" id="s-y" placeholder="Y" step="1">
+        </div>
+      </div>
+      <div class="sel-field" id="f-text">
+        <label>Text</label>
+        <textarea id="s-text" rows="2" placeholder="Text content"></textarea>
+      </div>
+      <div class="sel-field" id="f-font">
+        <label>Font size <span class="v" id="s-fs-v">16px</span></label>
+        <input type="range" id="s-font-size" min="8" max="120" value="16">
+      </div>
 
       <div class="row" style="margin-top:8px">
         <button class="btn" id="s-dup">📑 Duplicate</button>
+        <button class="btn" id="s-copy">📄 Copy</button>
       </div>
       <div class="row">
+        <button class="btn" id="s-paste">📋 Paste</button>
         <button class="btn" id="s-front">⬆ Front</button>
-        <button class="btn" id="s-back">⬇ Back</button>
       </div>
       <div class="row">
+        <button class="btn" id="s-back">⬇ Back</button>
         <button class="btn" id="s-del" style="background:#3b1212;border-color:#7f1d1d;color:#fecaca">
           🗑️ Delete
         </button>
@@ -160,13 +177,15 @@
     <button class="btn" id="clear">💥 Clear all</button>
     <button class="btn" id="save">💾 Save JSON</button>
     <button class="btn" id="load">📂 Load JSON</button>
-    <button class="btn" id="png">🖼️ Export PNG</button>
+    <button class="btn" id="png">🖼️ Export PNG (2×)</button>
 
     <h3>Help</h3>
     <div class="hint">
-      <b style="color:#a5b4fc">Select object:</b> click it<br>
-      <b style="color:#a5b4fc">Drag:</b> click &amp; drag<br>
       <b style="color:#a5b4fc">Place stencil:</b> click it, then click canvas<br>
+      <b style="color:#a5b4fc">Cancel placement:</b> Esc<br>
+      <b style="color:#a5b4fc">Select:</b> click object<br>
+      <b style="color:#a5b4fc">Drag:</b> click &amp; drag<br>
+      <b style="color:#a5b4fc">Copy:</b> Ctrl+C / <b style="color:#a5b4fc">Paste:</b> Ctrl+V<br>
       <b style="color:#a5b4fc">Delete:</b> Del key<br>
       <b style="color:#a5b4fc">Undo:</b> Ctrl+Z
     </div>
@@ -175,11 +194,11 @@
 
 <div id="toast"></div>
 <div id="status">booting…</div>
-<div id="banner">Click canvas to place: <span id="banner-name"></span></div>
+<div id="banner">📍 Click canvas to place: <span id="banner-name"></span></div>
 
 <script>
 /* =====================================================================
-   ERROR GUARD
+   0. GUARDS + HELPERS
    ===================================================================== */
 window.addEventListener('error', e => {
   console.error('[error]', e.message);
@@ -198,19 +217,13 @@ function toast(msg, kind){
 }
 
 if (!window.fabric){
-  document.getElementById('status').textContent = 'FABRIC FAILED';
-  document.body.innerHTML = '<div style="padding:60px;color:#f87171;' +
-    'font-family:system-ui;max-width:600px;margin:0 auto">' +
-    '<h2>⚠️ Fabric.js failed to load</h2>' +
-    '<p>Check your internet connection or firewall. ' +
-    'The app needs to reach cdn.jsdelivr.net once.</p>' +
-    '<p>Try a hard refresh: Ctrl+Shift+R (or Cmd+Shift+R on Mac)</p></div>';
+  document.body.innerHTML = '<div style="padding:60px;color:#f87171;font-family:system-ui;max-width:600px;margin:0 auto"><h2>⚠️ Fabric.js failed to load</h2><p>Check your internet connection.</p></div>';
   throw new Error('fabric missing');
 }
 document.getElementById('status').textContent = 'fabric ' + fabric.version + ' ✓';
 
 /* =====================================================================
-   CANVAS
+   1. CANVAS
    ===================================================================== */
 const CW = 1400, CH = 900;
 const canvas = new fabric.Canvas('c', {
@@ -228,7 +241,7 @@ fabric.Object.prototype.set({
   cornerStyle: 'circle',
   borderColor: '#6366f1',
   borderScaleFactor: 1.5,
-  strokeUniform: true,
+  strokeUniform: true,     // ★ keeps stroke thin when stretched
 });
 
 /* Grid background */
@@ -247,16 +260,17 @@ fabric.Object.prototype.set({
 })();
 
 /* =====================================================================
-   STATE
+   2. STATE
    ===================================================================== */
 let currentTool = 'select';
 let drawing = false, startPt = null, activeShape = null;
 let pendingStencil = null;
 let undoStack = [], redoStack = [];
 let clipboard = [];
+let clipboardOffset = 0;
 
 /* =====================================================================
-   TOOLS
+   3. TOOLS
    ===================================================================== */
 function setTool(t){
   currentTool = t;
@@ -266,6 +280,7 @@ function setTool(t){
     b.classList.toggle('active', b.dataset.tool === t));
   document.querySelectorAll('.stencil').forEach(x => x.classList.remove('active'));
   canvas.selection = (t === 'select');
+  canvas.forEachObject(o => { o.evented = true; });
   document.body.style.cursor = (t === 'select') ? 'default' : 'crosshair';
 }
 document.querySelectorAll('.btn[data-tool]').forEach(b => {
@@ -273,14 +288,14 @@ document.querySelectorAll('.btn[data-tool]').forEach(b => {
 });
 
 /* =====================================================================
-   SNAP
+   4. SNAP
    ===================================================================== */
 function snap(p){
   return { x: Math.round(p.x/20)*20, y: Math.round(p.y/20)*20 };
 }
 
 /* =====================================================================
-   MOUSE HANDLERS
+   5. MOUSE HANDLERS
    ===================================================================== */
 canvas.on('mouse:down', opt => {
   // Priority 1: Stencil placement
@@ -290,8 +305,21 @@ canvas.on('mouse:down', opt => {
     return;
   }
 
-  // Priority 2: Select tool — Fabric handles everything
-  if (currentTool === 'select') return;
+  // Priority 2: Select tool — Fabric handles drag/select
+  if (currentTool === 'select'){
+    // Alt+drag = duplicate
+    if (opt.target && opt.e.altKey && !opt.target.isBackground){
+      const orig = opt.target;
+      orig.clone(c => {
+        c.set({ left: (orig.left||0)+20, top: (orig.top||0)+20,
+                evented: true, selectable: true });
+        canvas.add(c); canvas.setActiveObject(c); canvas.renderAll();
+        pushHistory();
+        toast('Duplicated', 'ok');
+      }, ['stencilLabel']);
+    }
+    return;
+  }
 
   // Priority 3: Eraser
   if (currentTool === 'erase'){
@@ -299,7 +327,7 @@ canvas.on('mouse:down', opt => {
     return;
   }
 
-  // Priority 4: Text
+  // Priority 4: Text placement
   if (currentTool === 'text'){
     const p = canvas.getPointer(opt.e);
     const t = new fabric.IText(document.getElementById('new-text').value || 'LABEL', {
@@ -384,18 +412,18 @@ canvas.on('mouse:up', () => {
     if (activeShape.type === 'circle' && activeShape.radius < 3){
       canvas.remove(activeShape); activeShape = null; return;
     }
-
     activeShape.set({ selectable: true, evented: true });
     canvas.setActiveObject(activeShape);
     activeShape = null;
     canvas.requestRenderAll();
     pushHistory();
+    updatePanel();
     toast('Shape added', 'ok');
   }
 });
 
 /* =====================================================================
-   STENCIL LIBRARY
+   6. STENCIL PRIMITIVES
    ===================================================================== */
 function rect(x,y,w,h,opts){
   return new fabric.Rect(Object.assign({
@@ -405,7 +433,7 @@ function rect(x,y,w,h,opts){
 }
 function line(x1,y1,x2,y2,opts){
   return new fabric.Line([x1,y1,x2,y2], Object.assign({
-    stroke:'#0f172a', strokeWidth:1.5, strokeLineCap: 'round',
+    stroke:'#0f172a', strokeWidth:1.5, strokeLineCap:'round',
   }, opts || {}));
 }
 function circle(x,y,r,opts){
@@ -425,17 +453,46 @@ function group(objs, label){
   g.stencilLabel = label || '';
   return g;
 }
+function hatch(x,y,w,h,opts){
+  opts = opts || {};
+  const sp = opts.spacing || 10;
+  const col = opts.color || '#94a3b8';
+  const parts = [rect(x,y,w,h,Object.assign({
+    fill:'rgba(226,232,240,.6)', stroke:'#0f172a', strokeWidth:1.5
+  }, opts.base || {}))];
+  for (let i = -h; i < w + h; i += sp){
+    const x1 = x + i, y1 = y, x2 = x + i + h, y2 = y + h;
+    const sx = Math.max(x, Math.min(x1, x+w));
+    const ex = Math.max(x, Math.min(x2, x+w));
+    if (sx === ex) continue;
+    const t1 = (sx - x1) / (x2 - x1 || 1);
+    const t2 = (ex - x1) / (x2 - x1 || 1);
+    const sy = y1 + t1 * (y2 - y1);
+    const ey = y1 + t2 * (y2 - y1);
+    if (sy < y - 0.5 || sy > y + h + 0.5) continue;
+    parts.push(line(sx, Math.max(y, sy), ex, Math.min(y + h, ey),
+      { stroke: col, strokeWidth: 0.7, opacity: 0.7 }));
+  }
+  return parts;
+}
 
+/* =====================================================================
+   7. STENCIL LIBRARY
+   ===================================================================== */
+const M2PX = 20;
 const STENCILS = {
-  gate: () => group([
+
+  gate_2door: () => group([
     rect(0, 0, 20, 20, { fill:'#64748b' }),
-    rect(140, 0, 20, 20, { fill:'#64748b' }),
-    line(20, 10, 140, 10, { strokeWidth: 3 }),
-    text('GATE', 55, 26, 12),
+    rect(80, 0, 20, 20, { fill:'#64748b' }),
+    line(20, 10, 80, 10, { strokeWidth: 2 }),
+    line(20, 10, 20, -30, { strokeWidth: 1 }),
+    line(80, 10, 80, -30, { strokeWidth: 1 }),
+    text('GATE', 35, 26, 12),
   ], 'Gate'),
 
   fence: () => group([
-    rect(0, 0, 200, 12, { fill:'#a8a29e' }),
+    rect(0, 0, 200, 12, { fill:'#a8a29e', stroke:'#44403c', strokeWidth: 1.5 }),
     line(0, 6, 200, 6, { stroke:'#44403c' }),
     text('FENCE', 70, 16, 12),
   ], 'Fence'),
@@ -445,37 +502,57 @@ const STENCILS = {
     rect(58, -4, 8, 22, { fill:'#78716c', stroke:'#1c1917' }),
     rect(118, -4, 8, 22, { fill:'#78716c', stroke:'#1c1917' }),
     rect(178, -4, 8, 22, { fill:'#78716c', stroke:'#1c1917' }),
+    rect(-3, -4, 8, 22, { fill:'#78716c', stroke:'#1c1917' }),
+    rect(235, -4, 8, 22, { fill:'#78716c', stroke:'#1c1917' }),
     text('CEMENT FENCE', 60, 18, 12),
   ], 'Cement Fence'),
 
+  cement_fence_post: () => group([
+    rect(0, 0, 20, 20, { fill:'#78716c', stroke:'#1c1917', strokeWidth: 2 }),
+    circle(7, 7, 4, { fill:'#1c1917', stroke: 'none' }),
+    text('POST', 0, 24, 10),
+  ], 'Cement Post'),
+
   cabin: () => group([
     rect(0, 0, 160, 120, { fill:'#f1f5f9', stroke:'#0f172a', strokeWidth: 2 }),
-    rect(130, 45, 22, 30, { fill:'#94a3b8' }),
+    rect(5, 5, 150, 110, { fill: 'transparent', stroke:'#475569', strokeDashArray:[4,2] }),
+    rect(130, 45, 22, 30, { fill:'#94a3b8', stroke:'#0f172a' }),
+    rect(6, 6, 24, 12, { fill:'#dbeafe', stroke:'#1e3a8a' }),
+    text('AC', 14, 9, 7, { fill:'#1e3a8a' }),
     text('SHELTER', 45, 55, 14),
   ], 'Shelter'),
 
+  stairs: () => {
+    const parts = [];
+    for (let i = 0; i < 8; i++){
+      parts.push(rect(0, i*8, 30, 8, { fill:'#cbd5e1', stroke:'#334155' }));
+    }
+    parts.push(text('STAIRS', 36, 30, 11));
+    return group(parts, 'Stairs');
+  },
+
   odc: () => group([
-    rect(0, 0, 40, 88, { fill:'#f8fafc', stroke:'#0f172a', strokeWidth: 2 }),
-    line(20, 0, 20, 88, { strokeDashArray: [3,2] }),
-    text('ODC', 5, 40, 11),
+    rect(0, 0, 24, 44, { fill:'#f8fafc', stroke:'#0f172a', strokeWidth: 2 }),
+    line(12, 0, 12, 44, { strokeDashArray:[3,2] }),
+    text('ODC', 0, 48, 11),
   ], 'ODC'),
 
   cab1: () => group([
-    rect(0, 0, 20, 88, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth: 2 }),
-    text('1B', 2, 40, 10),
+    rect(0, 0, 12, 44, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth: 1.8 }),
+    text('1B', 0, 48, 10),
   ], '1-Bay'),
 
   cab2: () => group([
-    rect(0, 0, 40, 88, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth: 2 }),
-    line(20, 0, 20, 88, { strokeWidth: 1 }),
-    text('2B', 12, 40, 10),
+    rect(0, 0, 24, 44, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth: 1.8 }),
+    line(12, 0, 12, 44, { strokeWidth: 1 }),
+    text('2B', 6, 48, 10),
   ], '2-Bay'),
 
   cab3: () => group([
-    rect(0, 0, 60, 88, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth: 2 }),
-    line(20, 0, 20, 88, { strokeWidth: 1 }),
-    line(40, 0, 40, 88, { strokeWidth: 1 }),
-    text('3B', 22, 40, 10),
+    rect(0, 0, 36, 44, { fill:'#e2e8f0', stroke:'#0f172a', strokeWidth: 1.8 }),
+    line(12, 0, 12, 44, { strokeWidth: 1 }),
+    line(24, 0, 24, 44, { strokeWidth: 1 }),
+    text('3B', 12, 48, 10),
   ], '3-Bay'),
 
   tower4: () => group([
@@ -486,7 +563,7 @@ const STENCILS = {
     rect(148, -8, 20, 20, { fill:'#94a3b8' }),
     rect(-8, 148, 20, 20, { fill:'#94a3b8' }),
     rect(148, 148, 20, 20, { fill:'#94a3b8' }),
-    circle(76, 76, 8, { fill:'#1e293b' }),
+    circle(74, 74, 8, { fill:'#1e293b' }),
     text('4-LEG TOWER', 30, 74, 13),
   ], '4-Leg Tower'),
 
@@ -496,45 +573,62 @@ const STENCILS = {
       line(A.x,A.y,B.x,B.y,{strokeWidth: 2}),
       line(B.x,B.y,C.x,C.y,{strokeWidth: 2}),
       line(C.x,C.y,A.x,A.y,{strokeWidth: 2}),
-      circle(A.x-5, A.y-5, 6),
-      circle(B.x-5, B.y-5, 6),
-      circle(C.x-5, C.y-5, 6),
-      circle(75, 65, 7, { fill:'#1e293b' }),
+      line(A.x,A.y,(B.x+C.x)/2,(B.y+C.y)/2,{ strokeDashArray:[5,4] }),
+      line(B.x,B.y,(A.x+C.x)/2,(A.y+C.y)/2,{ strokeDashArray:[5,4] }),
+      circle(74, 0, 6, { fill:'#334155' }),
+      circle(-4, 132, 6, { fill:'#334155' }),
+      circle(152, 132, 6, { fill:'#334155' }),
+      circle(75, 68, 7, { fill:'#1e293b' }),
       text('3-LEG', 55, 90, 12),
     ], '3-Leg Tower');
   },
 
-  towerfoot: () => group([
-    rect(0, 0, 40, 40, { fill:'#cbd5e1', stroke:'#0f172a', strokeWidth: 1.5 }),
-    circle(17, 17, 5, { fill:'#334155' }),
-    text('FOOT', 2, 44, 10),
-  ], 'Footing'),
+  towerfoot: () => {
+    const parts = hatch(0, 0, 40, 40, { spacing: 6, color: '#64748b' });
+    parts.push(circle(17, 17, 4, { fill:'#334155', stroke: 'none' }));
+    parts.push(text('FOOTING', 0, 44, 10));
+    return group(parts, 'Footing');
+  },
 
   guy: () => group([
-    circle(0, 0, 18, { fill:'#fef3c7', stroke:'#a16207', strokeWidth: 1.5 }),
-    circle(14, 14, 4, { fill:'#a16207' }),
+    circle(0, 0, 18, { fill:'#a8a29e', stroke:'#44403c', strokeWidth: 1.5 }),
+    circle(10, 10, 6, { fill:'#fef3c7', stroke:'#a16207' }),
+    circle(14, 14, 2, { fill:'#1e293b', stroke:'none' }),
+    text('GUY', 6, 24, 10),
   ], 'Guy Anchor'),
 
-  genset: () => group([
-    rect(0, 0, 200, 120, { fill:'#cbd5e1', stroke:'#334155', strokeDashArray:[4,3] }),
-    rect(20, 30, 160, 60, { fill:'#fef3c7', stroke:'#78350f', strokeWidth: 2 }),
-    rect(155, 40, 20, 40, { fill:'#fdba74', stroke:'#7c2d12' }),
-    text('GENSET', 65, 55, 14),
-  ], 'Generator'),
+  genset: () => {
+    const parts = hatch(0, 0, 200, 120, { spacing: 10, color: '#94a3b8' });
+    parts.push(rect(20, 30, 160, 60, { fill:'#fef3c7', stroke:'#78350f', strokeWidth: 2 }));
+    parts.push(rect(150, 38, 25, 44, { fill:'#fdba74', stroke:'#7c2d12' }));
+    parts.push(rect(24, 38, 20, 44, { fill:'#dbeafe', stroke:'#1e3a8a' }));
+    parts.push(circle(110, 26, 5, { fill:'#94a3b8', stroke:'#334155' }));
+    parts.push(text('GENSET', 65, 55, 14));
+    parts.push(text('RAD', 152, 22, 8, { fill:'#7c2d12' }));
+    parts.push(text('CP', 26, 22, 8, { fill:'#1e3a8a' }));
+    return group(parts, 'Generator');
+  },
 
   fuel: () => group([
+    circle(-10, -10, 50, { fill:'transparent', stroke:'#94a3b8', strokeDashArray:[4,3] }),
     circle(0, 0, 40, { fill:'#fecaca', stroke:'#7f1d1d', strokeWidth: 2 }),
-    circle(8, 8, 24, { fill:'transparent', stroke:'#7f1d1d', strokeDashArray:[3,2] }),
-    text('FUEL', 10, 20, 12),
+    circle(4, 4, 32, { fill:'transparent', stroke:'#7f1d1d', strokeDashArray:[3,2] }),
+    circle(20, -20, 4, { fill:'#7f1d1d', stroke: 'none' }),
+    circle(30, 4, 4, { fill:'#0891b2', stroke: 'none' }),
+    circle(4, 30, 4, { fill:'#334155', stroke: 'none' }),
+    text('FUEL TANK', 0, 18, 11),
   ], 'Fuel Tank'),
 
   transformer: () => group([
     rect(0, 0, 60, 60, { fill:'#fef3c7', stroke:'#78350f', strokeWidth: 2 }),
-    circle(20, -5, 4, { fill:'#dc2626' }),
-    circle(40, -5, 4, { fill:'#dc2626' }),
-    circle(20, 60, 4, { fill:'#2563eb' }),
-    circle(40, 60, 4, { fill:'#2563eb' }),
+    circle(15, -8, 4, { fill:'#dc2626', stroke:'#7f1d1d' }),
+    circle(30, -8, 4, { fill:'#dc2626', stroke:'#7f1d1d' }),
+    circle(45, -8, 4, { fill:'#dc2626', stroke:'#7f1d1d' }),
+    circle(20, 68, 4, { fill:'#2563eb', stroke:'#1e3a8a' }),
+    circle(40, 68, 4, { fill:'#2563eb', stroke:'#1e3a8a' }),
     text('TX', 20, 22, 13),
+    text('HV', 20, -22, 8, { fill:'#dc2626' }),
+    text('LV', 20, 74, 8, { fill:'#2563eb' }),
   ], 'Transformer'),
 
   battery: () => group([
@@ -542,86 +636,126 @@ const STENCILS = {
     line(40, 0, 40, 30, { stroke:'#1e3a8a' }),
     line(80, 0, 80, 30, { stroke:'#1e3a8a' }),
     line(120, 0, 120, 30, { stroke:'#1e3a8a' }),
-    text('BATTERY', 40, 34, 11),
+    circle(4, 4, 2, { fill:'#dc2626', stroke: 'none' }),
+    circle(36, 4, 2, { fill:'#1e293b', stroke: 'none' }),
+    text('BATTERY BANK', 30, 34, 11),
   ], 'Battery Bank'),
 
   aircon: () => group([
     rect(0, 0, 60, 40, { fill:'#e0f2fe', stroke:'#0369a1', strokeWidth: 1.5 }),
-    circle(30, 15, 12, { fill:'#bae6fd', stroke:'#0369a1' }),
-    circle(25, 10, 3, { fill:'#0369a1' }),
-    text('AC', 22, 44, 11),
+    circle(18, 20, 12, { fill:'#bae6fd', stroke:'#0369a1' }),
+    circle(18, 20, 3, { fill:'#0369a1', stroke:'none' }),
+    text('AC', 45, 14, 11, { fill:'#0c4a6e' }),
   ], 'Aircon'),
 
-  basepad: () => group([
-    rect(0, 0, 120, 120, { fill:'#cbd5e1', stroke:'#334155', strokeWidth: 2 }),
-    line(0, 0, 15, 0, { strokeWidth: 3 }),
-    line(0, 0, 0, 15, { strokeWidth: 3 }),
-    line(120, 0, 105, 0, { strokeWidth: 3 }),
-    line(120, 0, 120, 15, { strokeWidth: 3 }),
-    line(0, 120, 15, 120, { strokeWidth: 3 }),
-    line(0, 120, 0, 105, { strokeWidth: 3 }),
-    line(120, 120, 105, 120, { strokeWidth: 3 }),
-    line(120, 120, 120, 105, { strokeWidth: 3 }),
-    text('BASEPAD', 30, 55, 13),
-  ], 'Cement Basepad'),
+  /* --- PADS & BASES --- */
+  basepad: () => {
+    const parts = hatch(0, 0, 120, 120, { spacing: 12, color: '#94a3b8' });
+    parts.push(line(0, 0, 15, 0, { strokeWidth: 3 }));
+    parts.push(line(0, 0, 0, 15, { strokeWidth: 3 }));
+    parts.push(line(120, 0, 105, 0, { strokeWidth: 3 }));
+    parts.push(line(120, 0, 120, 15, { strokeWidth: 3 }));
+    parts.push(line(0, 120, 15, 120, { strokeWidth: 3 }));
+    parts.push(line(0, 120, 0, 105, { strokeWidth: 3 }));
+    parts.push(line(120, 120, 105, 120, { strokeWidth: 3 }));
+    parts.push(line(120, 120, 120, 105, { strokeWidth: 3 }));
+    parts.push(text('BASEPAD', 30, 55, 13));
+    return group(parts, 'Cement Basepad');
+  },
 
-  basepad_gen: () => group([
-    rect(0, 0, 160, 90, { fill:'rgba(254,243,199,.7)', stroke:'#78350f', strokeWidth: 2 }),
-    text('GEN PAD', 40, 38, 13),
-  ], 'Generator Basepad'),
+  basepad_gen: () => {
+    const parts = hatch(0, 0, 160, 90, {
+      spacing: 9, color: '#b45309',
+      base: { fill: 'rgba(254,243,199,.7)', stroke: '#78350f', strokeWidth: 2 }
+    });
+    parts.push(text('GEN PAD', 40, 38, 13));
+    return group(parts, 'Generator Basepad');
+  },
 
-  cabletray: () => group([
-    line(0, 0, 200, 0, { stroke:'#475569', strokeWidth: 3 }),
-    line(0, 14, 200, 14, { stroke:'#475569', strokeWidth: 3 }),
-    ...Array.from({length: 20}, (_, i) =>
-      line(i*10 + 5, 0, i*10 + 5, 14, { stroke:'#475569' })),
-    text('CABLE TRAY', 55, 18, 12),
-  ], 'Cable Tray'),
+  basepad_tx: () => {
+    const parts = hatch(0, 0, 90, 90, {
+      spacing: 8, color: '#b45309',
+      base: { fill: 'rgba(254,243,199,.65)', stroke: '#78350f', strokeWidth: 2 }
+    });
+    parts.push(text('TX PAD', 22, 38, 12));
+    return group(parts, 'Transformer Basepad');
+  },
+
+  basepad_ac: () => {
+    const parts = hatch(0, 0, 60, 40, {
+      spacing: 6, color: '#0ea5e9',
+      base: { fill: 'rgba(224,242,254,.7)', stroke: '#0369a1', strokeWidth: 1.5 }
+    });
+    parts.push(text('AC PAD', 12, 14, 10));
+    return group(parts, 'AC Basepad');
+  },
+
+  /* --- CABLE INFRA --- */
+  cabletray: () => {
+    const parts = [
+      line(0, 0, 200, 0, { stroke:'#475569', strokeWidth: 3 }),
+      line(0, 14, 200, 14, { stroke:'#475569', strokeWidth: 3 }),
+    ];
+    for (let x = 5; x < 200; x += 10){
+      parts.push(line(x, 0, x, 14, { stroke:'#475569' }));
+    }
+    parts.push(text('CABLE TRAY', 55, 18, 12));
+    return group(parts, 'Cable Tray');
+  },
 
   openrack: () => group([
-    rect(0, 0, 30, 80, { fill:'#f8fafc', stroke:'#0f172a', strokeWidth: 1.5 }),
-    line(3, 3, 3, 77, { strokeWidth: 1 }),
-    line(27, 3, 27, 77, { strokeWidth: 1 }),
+    rect(0, 0, 30, 80, { fill:'#f8fafc', stroke:'#0f172a', strokeWidth: 1.8 }),
+    line(3, 3, 3, 77, { stroke:'#475569', strokeWidth: 1.5 }),
+    line(27, 3, 27, 77, { stroke:'#475569', strokeWidth: 1.5 }),
     text('RACK', 2, 84, 11),
   ], 'Open Rack'),
 
   hframe: () => group([
     rect(0, 0, 60, 100, { fill:'#e2e8f0', stroke:'#0f172a' }),
     line(0, 50, 60, 50, { strokeWidth: 3 }),
-    circle(15, 20, 6, { fill:'#fbbf24' }),
-    circle(45, 20, 6, { fill:'#fbbf24' }),
-    circle(15, 80, 6, { fill:'#fbbf24' }),
-    circle(45, 80, 6, { fill:'#fbbf24' }),
+    circle(15, 20, 6, { fill:'#fbbf24', stroke:'#92400e' }),
+    circle(45, 20, 6, { fill:'#fbbf24', stroke:'#92400e' }),
+    circle(15, 80, 6, { fill:'#fbbf24', stroke:'#92400e' }),
+    circle(45, 80, 6, { fill:'#fbbf24', stroke:'#92400e' }),
     text('H-FRAME', 5, 104, 11),
   ], 'H-Frame'),
 
-  grass: () => group([
-    rect(0, 0, 200, 150, {
-      fill:'rgba(132,204,22,.2)', stroke:'#65a30d',
-      strokeDashArray:[6,4]
-    }),
-    text('GRASS AREA', 55, 70, 14, { opacity: 0.55 }),
-  ], 'Grass'),
+  /* --- SURFACES --- */
+  grass: () => {
+    const parts = [rect(0, 0, 200, 150, {
+      fill:'rgba(132,204,22,.2)', stroke:'#65a30d', strokeDashArray:[6,4]
+    })];
+    for (let i = 0; i < 60; i++){
+      const x = Math.random() * 200, y = Math.random() * 150;
+      parts.push(line(x, y, x+2, y-5, { stroke:'#65a30d', strokeWidth: 0.8 }));
+      parts.push(line(x+2, y, x+4, y-3, { stroke:'#84cc16', strokeWidth: 0.8 }));
+    }
+    parts.push(text('GRASS AREA', 55, 70, 14, { opacity: 0.55 }));
+    return group(parts, 'Grass Area');
+  },
 
   cement: () => group([
     rect(0, 0, 200, 150, {
-      fill:'rgba(203,213,225,.6)', stroke:'#64748b',
-      strokeDashArray:[8,4]
+      fill:'rgba(203,213,225,.6)', stroke:'#64748b', strokeDashArray:[8,4]
     }),
     line(100, 0, 100, 150, { strokeDashArray:[5,5], stroke:'#94a3b8' }),
     line(0, 75, 200, 75, { strokeDashArray:[5,5], stroke:'#94a3b8' }),
     text('CEMENT SLAB', 50, 70, 14, { opacity: 0.5 }),
   ], 'Cement Slab'),
 
-  gravel: () => group([
-    rect(0, 0, 150, 100, {
+  gravel: () => {
+    const parts = [rect(0, 0, 150, 100, {
       fill:'rgba(168,162,158,.3)', stroke:'#78716c'
-    }),
-    ...Array.from({length: 30}, (_, i) =>
-      circle((i%10)*15 + 5, Math.floor(i/10)*30 + 10, 2,
-        { fill:'#78716c', stroke:'none' })),
-    text('GRAVEL', 45, 46, 13),
-  ], 'Gravel Pad'),
+    })];
+    for (let i = 0; i < 80; i++){
+      parts.push(circle(
+        Math.random() * 150, Math.random() * 100,
+        0.8 + Math.random() * 1.4,
+        { fill:'#78716c', stroke:'none', opacity: 0.65 }));
+    }
+    parts.push(text('GRAVEL', 45, 46, 13));
+    return group(parts, 'Gravel Pad');
+  },
 
   wall: () => group([
     rect(0, 0, 200, 12, { fill:'#a8a29e', stroke:'#44403c', strokeWidth: 2 }),
@@ -631,35 +765,66 @@ const STENCILS = {
     text('WALL', 82, 16, 12),
   ], 'Wall'),
 
-  label_note: () => {
-    const t = new fabric.IText('NOTE', {
-      left: 0, top: 0, fontSize: 16, fill: '#334155',
-      fontFamily: 'system-ui, sans-serif', fontWeight: 700,
-      backgroundColor: 'rgba(241,245,249,.95)', padding: 4,
-    });
-    return t;
-  },
+  /* --- LABELS --- */
+  label_equipment: () => text('EQUIPMENT', 0, 0, 14, {
+    backgroundColor: 'rgba(255,255,255,.9)', padding: 3
+  }),
+
+  label_cable: () => text('C-01', 0, 0, 12, {
+    fill: '#dc2626', backgroundColor: 'rgba(255,241,242,.9)', padding: 3
+  }),
+
+  label_zone: () => text('ZONE A', 0, 0, 18, {
+    fill: '#7c3aed', backgroundColor: 'rgba(243,232,255,.9)', padding: 4
+  }),
+
+  label_note: () => text('NOTE: ...', 0, 0, 12, {
+    fill: '#334155', fontWeight: '400',
+    backgroundColor: 'rgba(241,245,249,.95)', padding: 3
+  }),
 };
+
+/* =====================================================================
+   8. BUILD STENCIL LIST (grouped)
+   ===================================================================== */
+const STENCIL_GROUPS = [
+  ['🚪 Gate & Access', ['gate_2door', 'fence', 'cement_fence', 'cement_fence_post']],
+  ['🏢 Cabin / Shelter', ['cabin', 'stairs']],
+  ['🗄️ Cabinets', ['odc', 'cab1', 'cab2', 'cab3']],
+  ['📡 Tower', ['tower4', 'tower3', 'towerfoot', 'guy']],
+  ['⚡ Power', ['genset', 'fuel', 'transformer', 'battery']],
+  ['🛠️ Pads & Bases', ['basepad', 'basepad_gen', 'basepad_tx', 'basepad_ac']],
+  ['❄️ Cooling', ['aircon']],
+  ['🛣️ Cable Infra', ['cabletray', 'openrack', 'hframe']],
+  ['🌱 Surfaces', ['grass', 'cement', 'gravel', 'wall']],
+  ['🔤 Labels', ['label_equipment', 'label_cable', 'label_zone', 'label_note']],
+];
 
 function buildStencilList(){
   const wrap = document.getElementById('stencil-list');
   wrap.innerHTML = '';
-  Object.keys(STENCILS).forEach(id => {
-    const b = document.createElement('button');
-    b.className = 'btn stencil';
-    b.textContent = id.replace(/_/g, ' ');
-    b.onclick = () => {
-      document.querySelectorAll('.btn').forEach(x => x.classList.remove('active'));
-      document.querySelectorAll('.btn[data-tool]').forEach(x =>
-        x.classList.toggle('active', x.dataset.tool === 'select'));
-      b.classList.add('active');
-      currentTool = 'select';
-      canvas.selection = true;
-      pendingStencil = id;
-      showBanner(id.replace(/_/g, ' '));
-      toast('Click canvas to place: ' + id);
-    };
-    wrap.appendChild(b);
+  STENCIL_GROUPS.forEach(([title, ids]) => {
+    const h = document.createElement('h3');
+    h.textContent = title;
+    wrap.appendChild(h);
+    ids.forEach(id => {
+      if (!STENCILS[id]) return;
+      const b = document.createElement('button');
+      b.className = 'btn stencil';
+      b.textContent = id.replace(/_/g, ' ');
+      b.onclick = () => {
+        document.querySelectorAll('.btn').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('.btn[data-tool]').forEach(x =>
+          x.classList.toggle('active', x.dataset.tool === 'select'));
+        b.classList.add('active');
+        currentTool = 'select';
+        canvas.selection = true;
+        pendingStencil = id;
+        showBanner(id.replace(/_/g, ' '));
+        toast('Click canvas to place: ' + id);
+      };
+      wrap.appendChild(b);
+    });
   });
 }
 buildStencilList();
@@ -673,7 +838,7 @@ function hideBanner(){
 }
 
 /* =====================================================================
-   PLACEMENT
+   9. PLACEMENT
    ===================================================================== */
 function placeStencil(id, x, y){
   const maker = STENCILS[id];
@@ -685,7 +850,8 @@ function placeStencil(id, x, y){
     canvas.setActiveObject(obj);
     canvas.requestRenderAll();
     pushHistory();
-    toast('Placed: ' + id, 'ok');
+    updatePanel();
+    toast('Placed: ' + id.replace(/_/g,' '), 'ok');
   } catch(e){
     console.error(e);
     toast('Failed: ' + e.message, 'err');
@@ -695,11 +861,10 @@ function placeStencil(id, x, y){
   document.querySelectorAll('.stencil').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('.btn[data-tool]').forEach(x =>
     x.classList.toggle('active', x.dataset.tool === 'select'));
-  updatePanel();
 }
 
 /* =====================================================================
-   SELECTION PANEL — LIVE PROPERTY EDITING
+   10. SELECTION PANEL — LIVE PROPERTY EDITING
    ===================================================================== */
 const els = {
   empty:   document.getElementById('sel-empty'),
@@ -717,7 +882,11 @@ const els = {
   x:       document.getElementById('s-x'),
   y:       document.getElementById('s-y'),
   text:    document.getElementById('s-text'),
+  fontSz:  document.getElementById('s-font-size'),
+  fsV:     document.getElementById('s-fs-v'),
   dup:     document.getElementById('s-dup'),
+  copy:    document.getElementById('s-copy'),
+  paste:   document.getElementById('s-paste'),
   del:     document.getElementById('s-del'),
   front:   document.getElementById('s-front'),
   back:    document.getElementById('s-back'),
@@ -738,7 +907,7 @@ function targets(){
   return [a];
 }
 
-/* APPLY: applies a change to selection, and to group children */
+/* Apply a change to all targets + their group children */
 function apply(fn){
   const list = targets();
   if (!list.length) return;
@@ -747,7 +916,8 @@ function apply(fn){
     if (o.type === 'group' && o._objects){
       o._objects.forEach(child => {
         try {
-          if (child.stroke !== undefined || child.fill !== undefined) fn(child);
+          if (child.stroke !== undefined || child.fill !== undefined ||
+              child.strokeWidth !== undefined) fn(child);
         } catch(_){}
       });
     }
@@ -756,7 +926,23 @@ function apply(fn){
   pushHistory();
 }
 
-/* Wire panel controls — plain .oninput, idempotent */
+function showFields(obj){
+  const isText = obj && (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox');
+  const isLineLike = obj && (obj.type === 'line' || obj.type === 'path' || obj.type === 'polyline');
+  const isShape = obj && (obj.type === 'rect' || obj.type === 'circle' ||
+    obj.type === 'group' || obj.type === 'triangle' || obj.type === 'polygon');
+  const set = (id, on) => document.getElementById(id).classList.toggle('on', !!on);
+  set('f-stroke',  true);
+  set('f-strokew', !isText);
+  set('f-fill',    !isText);
+  set('f-opacity', true);
+  set('f-angle',   true);
+  set('f-pos',     true);
+  set('f-text',    isText);
+  set('f-font',    isText);
+}
+
+/* --- Wire every control with .oninput (idempotent) --- */
 els.stroke.oninput = e => {
   const v = e.target.value;
   apply(o => { if (o.stroke !== undefined) o.set('stroke', v); });
@@ -769,9 +955,7 @@ els.strokeW.oninput = e => {
 els.fill.oninput = e => {
   const v = e.target.value;
   apply(o => {
-    if (o.fill !== undefined && o.type !== 'i-text' && o.type !== 'text'){
-      o.set('fill', v);
-    }
+    if (o.fill !== undefined && o.type !== 'i-text' && o.type !== 'text') o.set('fill', v);
   });
   els.fillOn.checked = true;
 };
@@ -793,16 +977,8 @@ els.angle.oninput = e => {
   els.angV.textContent = v + '°';
   apply(o => { o.rotate(v); o.setCoords(); });
 };
-els.x.onchange = e => {
-  const v = parseFloat(e.target.value) || 0;
-  apply(o => o.set('left', v));
-  updatePanel();
-};
-els.y.onchange = e => {
-  const v = parseFloat(e.target.value) || 0;
-  apply(o => o.set('top', v));
-  updatePanel();
-};
+els.x.onchange = e => { apply(o => o.set('left', parseFloat(e.target.value) || 0)); updatePanel(); };
+els.y.onchange = e => { apply(o => o.set('top',  parseFloat(e.target.value) || 0)); updatePanel(); };
 els.text.oninput = e => {
   const v = e.target.value;
   apply(o => {
@@ -813,25 +989,35 @@ els.text.oninput = e => {
     }
   });
 };
+els.fontSz.oninput = e => {
+  const v = parseInt(e.target.value);
+  els.fsV.textContent = v + 'px';
+  apply(o => {
+    if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+      o.set('fontSize', v);
+      if (o.initDimensions) o.initDimensions();
+      o.setCoords();
+    }
+  });
+};
+
 els.dup.onclick = () => {
   const list = targets();
-  if (!list.length) return;
   list.forEach(o => {
     o.clone(c => {
       c.set({ left: (o.left||0)+20, top: (o.top||0)+20 });
-      canvas.add(c);
-      canvas.setActiveObject(c);
-    });
+      canvas.add(c); canvas.setActiveObject(c);
+    }, ['stencilLabel']);
   });
   canvas.requestRenderAll();
-  pushHistory();
+  pushHistory(); updatePanel();
   toast('Duplicated', 'ok');
 };
+els.copy.onclick = copySelection;
+els.paste.onclick = pasteClipboard;
 els.del.onclick = () => {
-  const list = targets();
-  list.forEach(o => canvas.remove(o));
-  canvas.discardActiveObject();
-  canvas.requestRenderAll();
+  targets().forEach(o => canvas.remove(o));
+  canvas.discardActiveObject(); canvas.requestRenderAll();
   pushHistory(); updatePanel();
   toast('Deleted');
 };
@@ -849,19 +1035,17 @@ function updatePanel(){
   els.panel.style.display = 'block';
 
   const o = list[0];
-  els.type.textContent = o.type +
-    (list.length > 1 ? ` (+${list.length - 1} more)` : '');
+  els.type.textContent = o.type + (list.length > 1 ? ` (+${list.length - 1})` : '');
+  showFields(o);
 
   const setIfFree = (el, val) => { if (document.activeElement !== el) el.value = val; };
 
-  // Representative stroke/fill
-  let stroke = o.stroke, fill = o.fill, sw = o.strokeWidth;
+  let stroke = o.stroke, fill = o.fill, sw = o.strokeWidth, fs = o.fontSize;
   if (o.type === 'group' && o._objects){
     const sc = o._objects.find(c => c.stroke);
     const fc = o._objects.find(c => c.fill && c.fill !== 'transparent');
     if (sc) stroke = sc.stroke;
     if (fc) fill = fc.fill;
-    if (sc && (sw == null || sw === 0)) sw = sc.strokeWidth;
   }
 
   setIfFree(els.stroke, hexOf(stroke));
@@ -883,18 +1067,15 @@ function updatePanel(){
   setIfFree(els.x, Math.round(o.left || 0));
   setIfFree(els.y, Math.round(o.top || 0));
 
-  if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox'){
+  const isText = (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox');
+  if (isText){
     setIfFree(els.text, o.text || '');
-    els.text.disabled = false;
-  } else {
-    if (document.activeElement !== els.text){
-      els.text.value = '';
-      els.text.placeholder = '(not editable)';
-    }
+    const f = o.fontSize || 16;
+    setIfFree(els.fontSz, f);
+    els.fsV.textContent = f + 'px';
   }
 }
 
-/* Wire selection events */
 canvas.on('selection:created', updatePanel);
 canvas.on('selection:updated', updatePanel);
 canvas.on('selection:cleared', updatePanel);
@@ -904,7 +1085,52 @@ canvas.on('object:scaling', updatePanel);
 canvas.on('object:rotating', updatePanel);
 
 /* =====================================================================
-   HISTORY
+   11. COPY / PASTE
+   ===================================================================== */
+function copySelection(){
+  const list = targets();
+  if (!list.length){ toast('Nothing selected'); return false; }
+  clipboard = [];
+  let pending = list.length;
+  list.forEach(o => {
+    o.clone(c => {
+      clipboard.push(c);
+      if (--pending === 0){
+        clipboardOffset = 0;
+        toast(`Copied ${clipboard.length}`, 'ok');
+      }
+    }, ['stencilLabel']);
+  });
+  return true;
+}
+function pasteClipboard(){
+  if (!clipboard.length){ toast('Clipboard empty'); return; }
+  clipboardOffset += 20;
+  const pasted = [];
+  let pending = clipboard.length;
+  clipboard.forEach(src => {
+    src.clone(c => {
+      c.set({
+        left: (src.left || 0) + clipboardOffset,
+        top:  (src.top  || 0) + clipboardOffset,
+        evented: true, selectable: true,
+      });
+      canvas.add(c);
+      pasted.push(c);
+      if (--pending === 0){
+        canvas.discardActiveObject();
+        if (pasted.length === 1) canvas.setActiveObject(pasted[0]);
+        else canvas.setActiveObject(new fabric.ActiveSelection(pasted, { canvas }));
+        canvas.requestRenderAll();
+        updatePanel(); pushHistory();
+        toast(`Pasted ${pasted.length}`, 'ok');
+      }
+    }, ['stencilLabel']);
+  });
+}
+
+/* =====================================================================
+   12. HISTORY
    ===================================================================== */
 function serialize(){
   return JSON.stringify(canvas.toJSON(['stencilLabel','strokeUniform']));
@@ -935,15 +1161,14 @@ document.getElementById('undo').onclick = undo;
 document.getElementById('redo').onclick = redo;
 
 /* =====================================================================
-   ACTIONS
+   13. ACTIONS
    ===================================================================== */
 document.getElementById('clear').onclick = () => {
-  if (!confirm('Clear all?')) return;
+  if (!confirm('Clear all objects?')) return;
   canvas.getObjects().forEach(o => canvas.remove(o));
   pushHistory(); updatePanel();
   toast('Cleared');
 };
-
 document.getElementById('save').onclick = () => {
   const data = canvas.toJSON(['stencilLabel']);
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -953,7 +1178,6 @@ document.getElementById('save').onclick = () => {
   a.click();
   toast('Saved', 'ok');
 };
-
 document.getElementById('load').onclick = () => {
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = '.json';
@@ -973,11 +1197,13 @@ document.getElementById('load').onclick = () => {
   };
   inp.click();
 };
-
 document.getElementById('png').onclick = () => {
+  const sel = canvas.getActiveObject();
   canvas.discardActiveObject();
   canvas.renderAll();
   const url = canvas.toDataURL({ format:'png', multiplier: 2, quality: 1 });
+  if (sel) canvas.setActiveObject(sel);
+  canvas.renderAll();
   const a = document.createElement('a');
   a.href = url;
   a.download = 'site_' + Date.now() + '.png';
@@ -986,32 +1212,32 @@ document.getElementById('png').onclick = () => {
 };
 
 /* =====================================================================
-   STYLE SLIDERS (top)
+   14. NEW SHAPE CONTROLS
    ===================================================================== */
 document.getElementById('new-stroke-w').oninput = e => {
   document.getElementById('new-sw-v').textContent = e.target.value + 'px';
 };
 
 /* =====================================================================
-   KEYBOARD
+   15. KEYBOARD
    ===================================================================== */
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.ctrlKey || e.metaKey){
-    if (e.key === 'z'){ e.preventDefault(); undo(); }
+    if (e.key === 'c'){ e.preventDefault(); copySelection(); }
+    if (e.key === 'v'){ e.preventDefault(); pasteClipboard(); }
+    if (e.key === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); }
     if (e.key === 'y'){ e.preventDefault(); redo(); }
     return;
   }
   if (e.key === 'Delete' || e.key === 'Backspace'){
     e.preventDefault();
     targets().forEach(o => canvas.remove(o));
-    canvas.discardActiveObject();
-    canvas.renderAll();
+    canvas.discardActiveObject(); canvas.renderAll();
     pushHistory(); updatePanel();
   }
   if (e.key === 'Escape'){
-    pendingStencil = null;
-    hideBanner();
+    pendingStencil = null; hideBanner();
     canvas.discardActiveObject(); canvas.renderAll();
     updatePanel();
   }
@@ -1024,11 +1250,11 @@ document.addEventListener('keydown', e => {
 });
 
 /* =====================================================================
-   BOOT LOG
+   16. BOOT
    ===================================================================== */
-console.log('[studio] ready. Stencils:', Object.keys(STENCILS).join(', '));
+console.log('[studio] ready. Stencils:', Object.keys(STENCILS).length);
 updatePanel();
-setTimeout(() => toast('Ready — pick a stencil or tool', 'ok'), 300);
+setTimeout(() => toast('Ready — pick a stencil or tool', 'ok'), 400);
 </script>
 </body>
 </html>
