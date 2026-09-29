@@ -30,7 +30,6 @@ APP_HTML = r"""<!DOCTYPE html>
     background:#0b1220;color:#e2e8f0;font-size:13px}
   #app{display:flex;height:100vh}
 
-  /* ---------- BOOT / ERROR OVERLAY ---------- */
   #boot{position:fixed;inset:0;z-index:9999;background:#0b1220;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     color:#8b9dc3;transition:opacity .3s}
@@ -46,7 +45,6 @@ APP_HTML = r"""<!DOCTYPE html>
   #boot .err code{background:#0b1220;padding:2px 6px;border-radius:4px;
     font-family:ui-monospace,monospace;color:#fbbf24}
 
-  /* ---------- SIDEBAR ---------- */
   #sidebar{width:300px;background:#131a2b;border-right:1px solid #1f2a44;
     overflow-y:auto;flex-shrink:0;padding:10px 12px 60px}
   #sidebar::-webkit-scrollbar{width:8px}
@@ -90,7 +88,6 @@ APP_HTML = r"""<!DOCTYPE html>
   .swatch:hover{transform:scale(1.1)}
   .swatch.sel{border-color:#fff;box-shadow:0 0 0 2px #6366f1}
 
-  /* ---------- STAGE ---------- */
   #stage{flex:1;position:relative;overflow:hidden;
     background:repeating-conic-gradient(#111a2e 0 25%,#0b1220 0 50%) 50%/22px 22px}
   #canvas-holder{position:absolute;left:0;top:0;
@@ -372,20 +369,17 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 /* =====================================================================
-   1. FABRIC.JS LOADER WITH CDN FALLBACK CHAIN
+   1. FABRIC.JS LOADER WITH CDN FALLBACK
    ===================================================================== */
 const FABRIC_CDNS = [
   'https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js',
   'https://unpkg.com/fabric@5.3.0/dist/fabric.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js',
 ];
-
 function loadFabric(i = 0){
   return new Promise((resolve, reject) => {
     if (window.fabric) return resolve();
-    if (i >= FABRIC_CDNS.length){
-      return reject(new Error('All Fabric.js CDNs failed'));
-    }
+    if (i >= FABRIC_CDNS.length) return reject(new Error('All Fabric.js CDNs failed'));
     Boot.show(`Loading graphics library (${i+1}/${FABRIC_CDNS.length})…`);
     const s = document.createElement('script');
     s.src = FABRIC_CDNS[i];
@@ -393,11 +387,10 @@ function loadFabric(i = 0){
     const timer = setTimeout(() => { s.onerror(); }, 8000);
     s.onload = () => {
       clearTimeout(timer);
-      window.fabric ? resolve() : reject(new Error('Script loaded but fabric undefined'));
+      window.fabric ? resolve() : reject(new Error('fabric undefined'));
     };
     s.onerror = () => {
-      clearTimeout(timer);
-      s.remove();
+      clearTimeout(timer); s.remove();
       loadFabric(i + 1).then(resolve, reject);
     };
     document.head.appendChild(s);
@@ -405,13 +398,12 @@ function loadFabric(i = 0){
 }
 
 /* =====================================================================
-   2. SAFE STORAGE WRAPPER
+   2. SAFE STORAGE
    ===================================================================== */
 const Storage = {
   KEY_DATA: 'cable_studio_v2',
   KEY_CTR:  'cable_studio_ctr_v2',
   KEY_QUAR: 'cable_studio_quarantine',
-
   available(){
     try {
       const k = '__t' + Math.random();
@@ -420,17 +412,17 @@ const Storage = {
       return true;
     } catch(_) { return false; }
   },
-  get(key){ try { return localStorage.getItem(key); } catch(_) { return null; } },
-  set(key, val){
-    try { localStorage.setItem(key, val); return true; }
+  get(k){ try { return localStorage.getItem(k); } catch(_) { return null; } },
+  set(k, v){
+    try { localStorage.setItem(k, v); return true; }
     catch(e){
       try { localStorage.setItem(this.KEY_QUAR, JSON.stringify({
-        ts: Date.now(), size: String(val).length, err: String(e)
+        ts: Date.now(), size: String(v).length, err: String(e)
       })); } catch(_){}
       return false;
     }
   },
-  del(key){ try { localStorage.removeItem(key); } catch(_){} },
+  del(k){ try { localStorage.removeItem(k); } catch(_){} },
   bytes(){
     if (!this.available()) return 0;
     let t = 0;
@@ -455,7 +447,7 @@ function validateImport(obj){
 }
 
 /* =====================================================================
-   4. IMAGE DOWNSCALE GUARD
+   4. IMAGE DOWNSCALE
    ===================================================================== */
 const MAX_IMAGE_DIM = 4096;
 function downscaleIfNeeded(dataUrl){
@@ -502,15 +494,13 @@ let currentTool = 'pen';
 let drawing = false;
 let startPt = null;
 let activeShape = null;
-let drawMoved = false;          // track movement to reject clicks
+let drawMoved = false;
 let undoStack = [], redoStack = [];
 let cableCounter = 0;
 let view = { zoom: 1, x: 0, y: 0 };
 let spaceDown = false, panning = false, panStart = null;
 let pasteLock = 0;
-let altDupPending = null;       // for Alt+drag duplicate
-let altDupOriginal = null;
-let shiftAxis = null;           // 'x' | 'y' for Shift+drag axis lock
+let shiftAxis = null;
 let shiftOrigin = null;
 const CW = 1400, CH = 900;
 
@@ -524,7 +514,25 @@ const CABLE_COLORS = {
 };
 
 /* =====================================================================
-   7. CANVAS INIT
+   7. ★ OPTION A — Tight selection boxes + per-pixel hit testing
+   ===================================================================== */
+function tightenSelectionBoxes(){
+  fabric.Object.prototype.set({
+    padding: 2,                    // shrink invisible padding
+    transparentCorners: true,      // no white boxes behind handles
+    cornerColor: '#6366f1',
+    cornerStrokeColor: '#ffffff',
+    cornerSize: 8,
+    cornerStyle: 'circle',
+    borderColor: '#6366f1',
+    borderScaleFactor: 1,          // thin border
+    borderOpacityWhenMoving: 0.6,
+    perPixelTargetFind: true,      // ← THE KEY: only hit the actual stroke
+  });
+}
+
+/* =====================================================================
+   8. CANVAS INIT
    ===================================================================== */
 function initCanvas(){
   canvas = new fabric.Canvas('c', {
@@ -540,14 +548,25 @@ function initCanvas(){
   canvas.on('mouse:down',  onDown);
   canvas.on('mouse:move',  onMove);
   canvas.on('mouse:up',    onUp);
-  canvas.on('object:added',    () => { markDirty(); refreshPanels(); });
+
+  // ★ Ensure every new object picks up the tight-selection settings
+  canvas.on('object:added', opt => {
+    if (opt.target && !opt.target.isBackground){
+      opt.target.set({
+        perPixelTargetFind: true,
+        padding: 2,
+      });
+    }
+    markDirty();
+    refreshPanels();
+  });
+
   canvas.on('object:modified', () => { markDirty(); refreshPanels(); });
   canvas.on('object:removed',  () => { refreshPanels(); });
   canvas.on('selection:created', refreshPanels);
   canvas.on('selection:updated', refreshPanels);
   canvas.on('selection:cleared', refreshPanels);
 
-  // Double-click text → inline edit
   canvas.on('mouse:dblclick', opt => {
     const t = opt.target;
     if (t && (t.type === 'i-text' || t.type === 'text' || t.type === 'textbox')){
@@ -560,7 +579,7 @@ function initCanvas(){
 }
 
 /* =====================================================================
-   8. GRID
+   9. GRID
    ===================================================================== */
 function drawGridOverlay(){
   const showGrid = $('show-grid').checked;
@@ -583,7 +602,7 @@ function drawGridOverlay(){
 }
 
 /* =====================================================================
-   9. SNAP
+   10. SNAP
    ===================================================================== */
 function snapPt(p){
   let x = p.x, y = p.y;
@@ -622,17 +641,16 @@ function snapPt(p){
 }
 
 /* =====================================================================
-   10. DRAW — with THE FIX for click-on-object creating new shapes
+   11. DRAW
    ===================================================================== */
 function onDown(opt){
-  // Pan mode
   if (spaceDown){
     panning = true;
     panStart = { x: opt.e.clientX, y: opt.e.clientY };
     return;
   }
 
-  // ─── ERASER: click to remove ────────────────────────────────────
+  // Eraser
   if (currentTool === 'erase'){
     if (opt.target && !opt.target.isBackground && !opt.target._isAnnotation){
       canvas.remove(opt.target);
@@ -641,20 +659,16 @@ function onDown(opt){
     return;
   }
 
-  // ─── SELECT: let Fabric handle everything ───────────────────────
+  // Select: let Fabric handle everything
   if (currentTool === 'select') return;
 
-  // ════════════════════════════════════════════════════════════════
-  //   THE FIX: if user clicked on ANY existing object, don't draw.
-  //   This lets you drag labels and shapes freely with any tool.
-  // ════════════════════════════════════════════════════════════════
+  // ═════ THE FIX: click on ANY object → don't draw ═════
+  // With perPixelTargetFind enabled, opt.target is only set
+  // when the click is truly on a rendered pixel of the object.
   if (opt.target && !opt.target.isBackground) return;
 
-  // If a text object is being edited, don't draw
   const active = canvas.getActiveObject();
   if (active && active.isEditing) return;
-
-  // Deselect prior selection so free drawing starts fresh
   if (active) canvas.discardActiveObject();
 
   const raw = canvas.getPointer(opt.e);
@@ -710,7 +724,6 @@ function onDown(opt){
     drawing = false;
     activeShape = null;
     toast('Text added — double-click to edit');
-    // Auto-switch to Select so the next drag moves the label
     setTimeout(() => setTool('select'), 60);
   }
 }
@@ -730,21 +743,18 @@ function onMove(opt){
 
   let p = snapPt(raw);
 
-  // Shift axis-lock for line / rect
+  // Shift axis-lock for geometry tools
   if (opt.e.shiftKey && (currentTool === 'line' ||
       currentTool === 'rect' || currentTool === 'circle')){
     const dx = Math.abs(p.x - startPt.x);
     const dy = Math.abs(p.y - startPt.y);
-    if (!shiftAxis){
-      shiftAxis = dx > dy ? 'x' : 'y';
-    }
+    if (!shiftAxis) shiftAxis = dx > dy ? 'x' : 'y';
     if (shiftAxis === 'x') p = { x: p.x, y: startPt.y };
     else                    p = { x: startPt.x, y: p.y };
   } else if (!opt.e.shiftKey){
     shiftAxis = null;
   }
 
-  // Track movement threshold (>6px = real drag)
   if (!drawMoved && Math.hypot(p.x - startPt.x, p.y - startPt.y) > 6){
     drawMoved = true;
   }
@@ -777,7 +787,7 @@ function onMove(opt){
   canvas.requestRenderAll();
 }
 
-function onUp(opt){
+function onUp(){
   if (panning){ panning = false; panStart = null; return; }
   if (!drawing) return;
   drawing = false;
@@ -785,9 +795,6 @@ function onUp(opt){
 
   if (!activeShape){ shiftAxis = null; return; }
 
-  // ─── Reject accidental quick clicks (no real drag) ──────────────
-  // Freehand pen: require >6px movement OR >180ms hold
-  // Geometry tools: require drawMoved flag
   const isPen = activeShape.type === 'path';
   if (!drawMoved && !isPen){
     canvas.remove(activeShape);
@@ -801,7 +808,6 @@ function onUp(opt){
     return;
   }
 
-  // Reject zero-size shapes
   try {
     if (activeShape.type === 'line'){
       const len = Math.hypot(activeShape.x2 - activeShape.x1,
@@ -820,10 +826,9 @@ function onUp(opt){
     }
   } catch(_) {}
 
-  activeShape.set({ selectable: true, evented: true });
+  activeShape.set({ selectable: true, evented: true, perPixelTargetFind: true, padding: 2 });
   canvas.setActiveObject(activeShape);
 
-  // Auto-length-label for lines
   if (activeShape.type === 'line' && $('show-length').checked){
     const dx = activeShape.x2 - activeShape.x1;
     const dy = activeShape.y2 - activeShape.y1;
@@ -849,7 +854,7 @@ function onUp(opt){
 }
 
 /* =====================================================================
-   11. TOOLS
+   12. TOOLS
    ===================================================================== */
 function setTool(tool){
   currentTool = tool;
@@ -857,8 +862,8 @@ function setTool(tool){
     b.classList.toggle('active', b.dataset.tool === tool));
   canvas.selection = tool === 'select';
   canvas.forEachObject(o => {
-    o.selectable = tool === 'select' || tool === 'erase' || true;
-    // Keep annotation labels always evented for drag
+    // Always evented so labels & shapes are draggable, but perPixelTargetFind
+    // ensures we only intercept on real pixels — perfect for Option A.
     o.evented = true;
   });
   document.body.style.cursor = tool === 'select' ? 'default' : 'crosshair';
@@ -868,17 +873,16 @@ document.querySelectorAll('[data-tool]').forEach(b => {
 });
 
 /* =====================================================================
-   12. ALT+DRAG DUPLICATE + SHIFT AXIS LOCK FOR OBJECTS
-   (uses Fabric's built-in object:moving hook)
+   13. ALT+DRAG DUPLICATE + SHIFT AXIS LOCK
    ===================================================================== */
 function installObjectMoveHelpers(){
   canvas.on('mouse:down', opt => {
-    // Alt held + clicked an object → clone it in place, drag the clone
     if (opt.e.altKey && opt.target && !opt.target.isBackground){
       const orig = opt.target;
       orig.clone(c => {
         c.set({ left: orig.left, top: orig.top,
-                evented: true, selectable: true });
+                evented: true, selectable: true,
+                perPixelTargetFind: true, padding: 2 });
         canvas.add(c);
         canvas.setActiveObject(c);
         canvas.renderAll();
@@ -888,12 +892,9 @@ function installObjectMoveHelpers(){
   });
 
   canvas.on('object:moving', opt => {
-    // Shift → lock movement to axis of first significant motion
     if (!opt.e.shiftKey) return;
     const o = opt.target;
-    if (!shiftOrigin){
-      shiftOrigin = { x: o.left, y: o.top };
-    }
+    if (!shiftOrigin) shiftOrigin = { x: o.left, y: o.top };
     const dx = Math.abs(o.left - shiftOrigin.x);
     const dy = Math.abs(o.top - shiftOrigin.y);
     if (dx > dy) o.set('top', shiftOrigin.y);
@@ -906,7 +907,7 @@ function installObjectMoveHelpers(){
 }
 
 /* =====================================================================
-   13. PALETTE
+   14. PALETTE
    ===================================================================== */
 function buildPalette(){
   const wrap = $('palette');
@@ -928,7 +929,7 @@ function buildPalette(){
 }
 
 /* =====================================================================
-   14. HISTORY
+   15. HISTORY
    ===================================================================== */
 const MAX_HISTORY = 80;
 const MAX_HISTORY_BYTES = 4_000_000;
@@ -945,7 +946,6 @@ function serialize(){
     return '{"v":2,"fabric":{"objects":[]}}';
   }
 }
-
 let saveTimer;
 function markDirty(){
   clearTimeout(saveTimer);
@@ -981,7 +981,10 @@ function applySnapshot(j){
   try {
     canvas.loadFromJSON(j, () => {
       if (bg) canvas.setBackgroundImage(bg, canvas.renderAll.bind(canvas));
-      canvas.forEachObject(o => { o.evented = true; });
+      canvas.forEachObject(o => {
+        o.evented = true;
+        o.set({ perPixelTargetFind: true, padding: 2 });
+      });
       canvas.renderAll();
       refreshPanels();
     });
@@ -991,7 +994,7 @@ function applySnapshot(j){
 }
 
 /* =====================================================================
-   15. ACTIONS
+   16. ACTIONS
    ===================================================================== */
 function clearAll(){
   const n = canvas.getObjects().length;
@@ -1012,7 +1015,8 @@ function duplicateSel(){
   if (!objs.length){ toast('Nothing selected', 'warn'); return; }
   objs.forEach(o => {
     o.clone(c => {
-      c.set({ left: (o.left || 0) + 20, top: (o.top || 0) + 20 });
+      c.set({ left: (o.left || 0) + 20, top: (o.top || 0) + 20,
+              perPixelTargetFind: true, padding: 2 });
       canvas.add(c);
     });
   });
@@ -1034,7 +1038,7 @@ function resetCounter(){
 }
 
 /* =====================================================================
-   16. IMAGE LOADING
+   17. IMAGE LOADING
    ===================================================================== */
 async function loadImage(dataUrl, name){
   if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')){
@@ -1120,7 +1124,7 @@ $('opacity').oninput = e => {
 };
 
 /* =====================================================================
-   17. VIEW
+   18. VIEW
    ===================================================================== */
 function applyView(){
   $('canvas-holder').style.transform =
@@ -1174,7 +1178,7 @@ window.addEventListener('mousemove', e => {
 });
 
 /* =====================================================================
-   18. PANELS
+   19. PANELS
    ===================================================================== */
 function refreshPanels(){
   refreshLegend();
@@ -1182,7 +1186,6 @@ function refreshPanels(){
   updateHud();
   updateStorageInfo();
 }
-
 function refreshLegend(){
   const items = {};
   canvas.getObjects().forEach(o => {
@@ -1207,7 +1210,6 @@ function refreshLegend(){
     wrap.appendChild(el);
   });
 }
-
 function refreshLayers(){
   const objs = canvas.getObjects().filter(o => !o.isBackground);
   const list = $('layers-list');
@@ -1241,7 +1243,6 @@ function refreshLayers(){
     list.innerHTML = '<div style="color:#66748f;font-size:.7rem;padding:4px 0">No objects</div>';
   }
 }
-
 function updateHud(){
   const n = canvas.getObjects().filter(o => !o.isBackground).length;
   const chip = $('hud-count');
@@ -1250,14 +1251,12 @@ function updateHud(){
   if (n > 800) chip.classList.add('err');
   else if (n > 300) chip.classList.add('warn');
 }
-
 function updateStorageInfo(){
   const bytes = Storage.bytes();
   const el = $('storage-info');
   if (!Storage.available()){ el.textContent = 'storage: unavailable'; return; }
   el.textContent = 'storage: ' + (bytes / 1024).toFixed(1) + ' KB';
 }
-
 function toggleLegend(){
   const l = $('legend');
   const show = l.style.display === 'none';
@@ -1272,7 +1271,7 @@ function toggleLayers(){
 }
 
 /* =====================================================================
-   19. EXPORT
+   20. EXPORT
    ===================================================================== */
 function download(blob, name){
   const a = document.createElement('a');
@@ -1283,7 +1282,6 @@ function download(blob, name){
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
-
 function exportPNG(){
   try {
     const scale = Math.max(1, Math.min(4, parseInt($('png-scale').value) || 1));
@@ -1297,9 +1295,7 @@ function exportPNG(){
       canvas.setBackgroundColor('transparent', () => {});
       canvas.renderAll();
     }
-
     const url = canvas.toDataURL({ format:'png', multiplier:scale, quality:1 });
-
     if (gridOn){
       drawGridOverlay();
       canvas.backgroundColor = savedBgColor;
@@ -1315,7 +1311,6 @@ function exportPNG(){
     toast('Export error: ' + e.message, 'err');
   }
 }
-
 function exportJSON(){
   try {
     const data = {
@@ -1337,7 +1332,6 @@ function exportJSON(){
     toast('JSON export failed: ' + e.message, 'err');
   }
 }
-
 function loadJSON(){ $('json-input').click(); }
 $('json-input').onchange = e => {
   const f = e.target.files[0];
@@ -1363,6 +1357,10 @@ $('json-input').onchange = e => {
     try {
       canvas.loadFromJSON(parsed.fabric || parsed, () => {
         if (bg) canvas.setBackgroundImage(bg, canvas.renderAll.bind(canvas));
+        canvas.forEachObject(o => {
+          o.evented = true;
+          o.set({ perPixelTargetFind: true, padding: 2 });
+        });
         canvas.renderAll();
         refreshPanels();
         toast('Annotations loaded');
@@ -1375,7 +1373,7 @@ $('json-input').onchange = e => {
 };
 
 /* =====================================================================
-   20. STORAGE / AUTOSAVE
+   21. STORAGE / AUTOSAVE
    ===================================================================== */
 function saveLocal(){
   if (!Storage.available()) return;
@@ -1384,7 +1382,6 @@ function saveLocal(){
   if (!ok) toast('Autosave failed — storage full', 'warn');
   updateStorageInfo();
 }
-
 function loadLocal(){
   if (!Storage.available()) return false;
   const j = Storage.get(Storage.KEY_DATA);
@@ -1406,9 +1403,12 @@ function loadLocal(){
   const cnt = parseInt(Storage.get(Storage.KEY_CTR) || '0');
   if (!Number.isNaN(cnt)) cableCounter = cnt;
   $('counter-val').textContent = 'C-' + String(cableCounter + 1).padStart(2, '0');
-
   try {
     canvas.loadFromJSON(parsed.fabric || parsed, () => {
+      canvas.forEachObject(o => {
+        o.evented = true;
+        o.set({ perPixelTargetFind: true, padding: 2 });
+      });
       canvas.renderAll();
       refreshPanels();
       const n = canvas.getObjects().filter(o => !o.isBackground).length;
@@ -1422,24 +1422,21 @@ function loadLocal(){
 }
 
 /* =====================================================================
-   21. KEYBOARD
+   22. KEYBOARD
    ===================================================================== */
 document.addEventListener('keydown', e => {
   const editing = e.target.tagName === 'INPUT' || e.target.isContentEditable;
-
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd'){
     e.preventDefault();
     runDiagnostics();
     return;
   }
   if (editing) return;
-
   if (e.code === 'Space'){
     spaceDown = true;
     document.body.style.cursor = 'grab';
     e.preventDefault();
   }
-
   const k = e.key.toLowerCase();
   if (e.ctrlKey || e.metaKey){
     if (k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); }
@@ -1456,7 +1453,6 @@ document.addEventListener('keydown', e => {
     }
     return;
   }
-
   if (e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); deleteSel(); }
   else if (k === 'v') setTool('select');
   else if (k === 'p') setTool('pen');
@@ -1468,14 +1464,12 @@ document.addEventListener('keydown', e => {
   else if (k === 'f') fitView();
   else if (k === 'escape'){ canvas.discardActiveObject(); canvas.renderAll(); }
 });
-
 document.addEventListener('keyup', e => {
   if (e.code === 'Space'){
     spaceDown = false;
     document.body.style.cursor = currentTool === 'select' ? 'default' : 'crosshair';
   }
 });
-
 window.addEventListener('blur', () => {
   spaceDown = false; panning = false; panStart = null;
   if (drawing){ drawing = false; $('measure').style.display = 'none'; }
@@ -1488,7 +1482,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* =====================================================================
-   22. DIAGNOSTICS
+   23. DIAGNOSTICS
    ===================================================================== */
 function runDiagnostics(){
   const lines = [];
@@ -1499,6 +1493,8 @@ function runDiagnostics(){
   lines.push('Storage bytes: ' + Storage.bytes());
   lines.push('Canvas: ' + canvas.getWidth() + '×' + canvas.getHeight());
   lines.push('Objects: ' + canvas.getObjects().length);
+  lines.push('perPixelTargetFind: ' + fabric.Object.prototype.perPixelTargetFind);
+  lines.push('padding: ' + fabric.Object.prototype.padding);
   lines.push('Undo depth: ' + undoStack.length);
   lines.push('Redo depth: ' + redoStack.length);
   lines.push('View: zoom=' + view.zoom.toFixed(2) +
@@ -1517,7 +1513,7 @@ function runDiagnostics(){
 }
 
 /* =====================================================================
-   23. SESSION BACKUP / RESET
+   24. SESSION BACKUP / RESET
    ===================================================================== */
 $('btn-export-session').onclick = () => exportJSON();
 $('btn-reset-session').onclick = () => {
@@ -1530,7 +1526,7 @@ $('btn-reset-session').onclick = () => {
 };
 
 /* =====================================================================
-   24. BINDINGS
+   25. BINDINGS
    ===================================================================== */
 $('stroke-width').oninput = e => $('sw-val').textContent = e.target.value + 'px';
 $('font-size').oninput    = e => $('fs-val').textContent = e.target.value + 'px';
@@ -1568,13 +1564,12 @@ $('toggle-layers').onclick = toggleLayers;
 $('legend-close').onclick = toggleLegend;
 
 /* =====================================================================
-   25. IFRAME / STREAMLIT HEIGHT SYNC
+   26. IFRAME / STREAMLIT HEIGHT SYNC
    ===================================================================== */
 function syncFrameHeight(){
   try {
     if (window.Streamlit && window.Streamlit.setFrameHeight){
-      window.Streamlit.setFrameHeight(
-        document.body.scrollHeight || window.innerHeight);
+      window.Streamlit.setFrameHeight(document.body.scrollHeight || window.innerHeight);
     }
   } catch(_){}
 }
@@ -1585,7 +1580,7 @@ window.addEventListener('resize', syncFrameHeight);
 setInterval(syncFrameHeight, 3000);
 
 /* =====================================================================
-   26. BOOT
+   27. BOOT
    ===================================================================== */
 (async function boot(){
   try {
@@ -1594,6 +1589,7 @@ setInterval(syncFrameHeight, 3000);
 
     Boot.show('Initializing canvas…');
     initCanvas();
+    tightenSelectionBoxes();   // ★ OPTION A applied here
     installObjectMoveHelpers();
     buildPalette();
     $('counter-val').textContent = 'C-01';
@@ -1605,12 +1601,10 @@ setInterval(syncFrameHeight, 3000);
       const restored = loadLocal();
       if (!restored) toast('Ready — paste or drop a floor plan');
       Boot.ready();
-
       window.addEventListener('beforeunload', e => {
         if (drawing){ e.preventDefault(); e.returnValue = ''; }
       });
     }, 200);
-
   } catch(e){
     console.error('[boot]', e);
     Boot.error('Startup failed',
