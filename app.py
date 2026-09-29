@@ -2,13 +2,12 @@ import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image, ImageDraw, ImageFont
-import numpy as np
 import io
 import json
 import base64
 from datetime import datetime
 
-# ---------- Page Config ----------
+# ---------- Page ----------
 st.set_page_config(
     page_title="Floor Plan Cable Routing",
     page_icon="🔌",
@@ -16,109 +15,121 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ---------- Session State Init ----------
-defaults = {
+# ---------- Session state ----------
+_defaults = {
     "canvas_key": 0,
     "undo_stack": [],
     "redo_stack": [],
     "uploaded_image": None,
     "image_size": (900, 650),
     "saved_shapes": None,
-    "paste_counter": 0,
+    "pasted_image": None,
 }
-for k, v in defaults.items():
+for k, v in _defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ---------- Custom CSS ----------
+# ---------- CSS ----------
 st.markdown(
     """
     <style>
-    .main-header {
-        font-size: 2rem; font-weight: 700;
-        background: linear-gradient(90deg, #2563eb, #7c3aed);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        margin-bottom: 0;
-    }
-    .sub-header { color: #6b7280; margin-top: 0; font-size: 0.95rem; }
-    .stButton button { border-radius: 8px; }
-    .block-container { padding-top: 1.2rem; }
-    .paste-hint {
-        background: #eef2ff; border-left: 4px solid #6366f1;
-        padding: 8px 12px; border-radius: 6px; font-size: 0.85rem;
-        color: #3730a3; margin-bottom: 8px;
-    }
+    .main-header{font-size:2rem;font-weight:700;
+        background:linear-gradient(90deg,#2563eb,#7c3aed);
+        -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0}
+    .sub-header{color:#6b7280;margin-top:0;font-size:.95rem}
+    .paste-hint{background:#eef2ff;border-left:4px solid #6366f1;padding:8px 12px;
+        border-radius:6px;font-size:.85rem;color:#3730a3;margin-bottom:8px}
+    .stButton button{border-radius:8px}
+    .block-container{padding-top:1.2rem}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# ---------- Header ----------
 st.markdown('<p class="main-header">🔌 Floor Plan Cable Routing Studio</p>', unsafe_allow_html=True)
-st.markdown(
-    '<p class="sub-header">Upload or paste a floor plan, draw cable routes, add labels, and export.</p>',
-    unsafe_allow_html=True,
-)
+st.markdown('<p class="sub-header">Upload or paste a floor plan, draw cable routes, add labels, and export.</p>', unsafe_allow_html=True)
 
 # ============================================================
-# CLIPBOARD PASTE CAPTURE (JS → Streamlit bridge)
+# PASTE CAPTURE — reads ?paste=<b64> from URL query params.
+# The iframe writes the pasted image into the parent URL via
+# window.parent.history.replaceState, then triggers a rerun.
 # ============================================================
-# Hidden component listens for paste events globally and pushes
-# the base64 PNG back into a hidden text_area via query params.
-PASTE_BRIDGE_HTML = """
-<div id="paste-zone" style="
-    border: 2px dashed #6366f1; border-radius: 10px;
-    padding: 14px; text-align: center; color: #4338ca;
-    background: #eef2ff; font-family: system-ui; font-size: 0.9rem;
-    cursor: text;" tabindex="0">
-  📋 <b>Click here, then press Ctrl+V</b> (⌘+V on Mac) to paste a screenshot
-  <div id="status" style="color:#059669; font-size:0.8rem; margin-top:4px;"></div>
+PASTE_HTML = r"""
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;font-family:system-ui,sans-serif;background:transparent}
+  #zone{border:2px dashed #6366f1;border-radius:10px;padding:12px;text-align:center;
+    color:#4338ca;background:#eef2ff;font-size:.85rem;cursor:pointer;outline:none;transition:.15s}
+  #zone:hover{background:#e0e7ff}
+  #zone.drag{background:#c7d2fe;border-color:#4338ca}
+  #status{color:#059669;font-size:.75rem;margin-top:4px;min-height:1em}
+</style></head><body>
+<div id="zone" tabindex="0">
+  📋 <b>Click here, then press Ctrl+V</b> (⌘+V on Mac)<br>
+  <span style="font-size:.72rem;color:#6366f1">…or drag &amp; drop an image</span>
+  <div id="status"></div>
 </div>
 <script>
-(function() {
-  const zone = document.getElementById('paste-zone');
-  const status = document.getElementById('status');
+(function(){
+  const zone=document.getElementById('zone'), status=document.getElementById('status');
+  const TOP = window.parent;
 
-  async function handlePaste(e) {
-    const items = (e.clipboardData || window.clipboardData || {}).items || [];
-    for (const item of items) {
-      if (item.type && item.type.indexOf('image') === 0) {
-        const blob = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = function(ev) {
-          const dataUrl = ev.target.result;
-          status.textContent = "✓ Image pasted — sending to app…";
-          // Send to Streamlit via query-param-free channel:
-          // use window.parent.postMessage + Streamlit.setComponentValue pattern
-          window.parent.postMessage({
-            isStreamlitMessage: true,
-            type: "streamlit:setComponentValue",
-            value: dataUrl,
-            dataType: "string"
-          }, "*");
-        };
-        reader.readAsDataURL(blob);
-        e.preventDefault();
-        return;
-      }
+  function push(dataUrl){
+    try {
+      const u = new URL(TOP.location.href);
+      // strip previous paste to keep URL small
+      u.searchParams.delete('paste');
+      u.searchParams.set('paste', dataUrl);
+      TOP.history.replaceState({}, '', u.toString());
+      status.textContent = '✓ Sent to app…';
+      // trigger Streamlit rerun by dispatching a popstate on the parent
+      TOP.dispatchEvent(new PopStateEvent('popstate', {state:{}}));
+      // Fallback: reload the parent after a short delay
+      setTimeout(()=>{ try{ TOP.location.reload(); }catch(e){} }, 250);
+    } catch(e) {
+      status.textContent = '✗ Could not send: ' + e.message;
     }
-    status.textContent = "No image found in clipboard.";
   }
 
-  zone.addEventListener('paste', handlePaste);
-  document.addEventListener('paste', handlePaste);
-  zone.focus();
-})();
-</script>
-"""
+  function handleFile(file){
+    if(!file || !file.type || file.type.indexOf('image')!==0) return false;
+    const r = new FileReader();
+    r.onload = e => {
+      status.textContent = '✓ Loaded (' + Math.round(file.size/1024) + ' KB)';
+      push(e.target.result);
+    };
+    r.readAsDataURL(file);
+    return true;
+  }
 
-def clipboard_paste_component(key):
-    """Returns a base64 data URL string if the user pasted an image, else None."""
-    return components.html(
-        PASTE_BRIDGE_HTML,
-        height=90,
-        key=key,
-    )
+  function onPaste(e){
+    const items = (e.clipboardData || window.clipboardData || {}).items || [];
+    for(const it of items){
+      if(it.kind==='file' && it.type.indexOf('image')===0){
+        if(handleFile(it.getAsFile())){ e.preventDefault(); return; }
+      }
+    }
+    status.textContent = 'No image found in clipboard.';
+  }
+
+  zone.addEventListener('paste', onPaste);
+  document.addEventListener('paste', onPaste);
+  zone.addEventListener('click', ()=>{ zone.focus(); status.textContent='Ready — press Ctrl+V'; });
+  ['dragenter','dragover'].forEach(ev=>zone.addEventListener(ev,e=>{
+    e.preventDefault(); e.stopPropagation(); zone.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(ev=>zone.addEventListener(ev,e=>{
+    e.preventDefault(); e.stopPropagation(); zone.classList.remove('drag');
+  }));
+  zone.addEventListener('drop', e=>{
+    const f = e.dataTransfer.files;
+    if(f && f.length) handleFile(f[0]);
+  });
+
+  if(window.Streamlit && window.Streamlit.setFrameHeight) window.Streamlit.setFrameHeight(85);
+})();
+</script></body></html>
+"""
 
 # ---------- Sidebar ----------
 with st.sidebar:
@@ -134,14 +145,13 @@ with st.sidebar:
             label_visibility="collapsed",
         )
 
-    pasted_data = None
     with tab_paste:
         st.markdown(
-            '<div class="paste-hint">Take a screenshot (Win+Shift+S / ⌘+Shift+4), '
+            '<div class="paste-hint">Screenshot first (Win+Shift+S / ⌘+Shift+4), '
             'then paste below with <b>Ctrl+V</b>.</div>',
             unsafe_allow_html=True,
         )
-        pasted_data = clipboard_paste_component(key=f"paste_{st.session_state.paste_counter}")
+        components.html(PASTE_HTML, height=85)
 
     st.divider()
     st.subheader("🖌️ Drawing Tool")
@@ -179,87 +189,82 @@ with st.sidebar:
 
     st.divider()
     st.subheader("🔧 Actions")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        undo_clicked = st.button("↩️ Undo", use_container_width=True)
-    with col_b:
-        redo_clicked = st.button("↪️ Redo", use_container_width=True)
-    clear_clicked = st.button("🗑️ Clear all drawings", use_container_width=True)
-    reset_img = st.button("🔄 Reload image", use_container_width=True)
+    ca, cb = st.columns(2)
+    with ca: undo_clicked = st.button("↩️ Undo", use_container_width=True)
+    with cb: redo_clicked = st.button("↪️ Redo", use_container_width=True)
+    clear_clicked  = st.button("🗑️ Clear drawings", use_container_width=True)
+    reset_img      = st.button("🔄 Reload image", use_container_width=True)
 
     st.divider()
     st.subheader("💾 Export")
-    export_png_btn = st.button("⬇️ Download annotated PNG", use_container_width=True)
+    export_png_btn  = st.button("⬇️ Download annotated PNG", use_container_width=True)
     export_json_btn = st.button("⬇️ Download annotations (JSON)", use_container_width=True)
 
     st.caption("Built with Streamlit + drawable-canvas")
 
-# ---------- Resolve image source (upload OR paste) ----------
-def load_pasted_image(data_url: str) -> Image.Image | None:
-    """Convert data:image/...;base64,... → PIL Image."""
+# ---------- Pull pasted image from query params ----------
+def _load_pasted_from_query():
     try:
-        if not isinstance(data_url, str) or not data_url.startswith("data:image"):
+        qp = st.query_params
+        raw = qp.get("paste")
+        if not raw:
             return None
-        header, b64 = data_url.split(",", 1)
-        raw = base64.b64decode(b64)
-        return Image.open(io.BytesIO(raw)).convert("RGBA")
+        if isinstance(raw, list):
+            raw = raw[0]
+        if not isinstance(raw, str) or not raw.startswith("data:image"):
+            return None
+        header, b64 = raw.split(",", 1)
+        img_bytes = base64.b64decode(b64)
+        return Image.open(io.BytesIO(img_bytes)).convert("RGBA")
     except Exception as e:
         st.warning(f"Could not decode pasted image: {e}")
         return None
 
-img = None
+pasted_img = _load_pasted_from_query()
+if pasted_img is not None:
+    st.session_state.pasted_image = pasted_img
+    # Clear the param so it doesn't re-trigger forever
+    try:
+        del st.query_params["paste"]
+    except Exception:
+        pass
+    st.toast("📋 Pasted image loaded!", icon="✅")
 
+# ---------- Resolve image ----------
+img = None
 if uploaded_file is not None:
     try:
         img = Image.open(uploaded_file).convert("RGBA")
     except Exception as e:
         st.error(f"Could not open image: {e}")
         st.stop()
-
-elif pasted_data:
-    pasted_img = load_pasted_image(pasted_data)
-    if pasted_img is not None:
-        img = pasted_img
-        st.toast("📋 Pasted image loaded!", icon="✅")
+elif st.session_state.pasted_image is not None:
+    img = st.session_state.pasted_image
 
 if img is not None:
-    # Fit within working canvas while preserving aspect ratio
     MAX_W, MAX_H = 1000, 700
     w, h = img.size
     ratio = min(MAX_W / w, MAX_H / h, 1.0)
-    new_w, new_h = int(w * ratio), int(h * ratio)
-    img = img.resize((new_w, new_h), Image.LANCZOS)
-
-    # If image changed (new upload/paste), reset drawing state
-    prev_size = st.session_state.image_size
+    nw, nh = int(w * ratio), int(h * ratio)
+    img = img.resize((nw, nh), Image.LANCZOS)
     st.session_state.uploaded_image = img
-    st.session_state.image_size = (new_w, new_h)
-    if prev_size != (new_w, new_h) and st.session_state.saved_shapes is not None:
-        # keep drawings if same size; otherwise clear
-        pass
+    st.session_state.image_size = (nw, nh)
 else:
     img = st.session_state.uploaded_image
 
 # ---------- Empty state ----------
 if img is None:
     st.info("👆 Upload a file **or paste a screenshot** from the sidebar to get started.")
-    st.markdown(
-        """
-        ### How to use
-        1. **Upload** or **paste** (Ctrl+V) a floor plan.
-        2. Pick a **tool**:
-           - 🖊️ **Pen** — freehand cable routes
-           - 📏 **Line** — straight segments
-           - ⬛ **Rectangle / Circle** — equipment, nodes
-           - 🔤 **Text** — labels (*AP-01*, *Switch A*)
-           - 🧹 **Eraser** — remove strokes
-        3. Customize **color, width, fill**.
-        4. **Undo/Redo**, then **Export** PNG or JSON.
-        """
-    )
+    st.markdown("""
+    ### How to use
+    1. **Upload** or **paste** (Ctrl+V) a floor plan.
+    2. Pick a **tool**: Pen, Line, Rectangle, Circle, Text, Eraser.
+    3. Customize **color, width, fill**.
+    4. **Undo/Redo**, then **Export** PNG or JSON.
+    """)
     st.stop()
 
-# ---------- Reset handlers ----------
+# ---------- Reset / clear ----------
 if reset_img:
     st.session_state.canvas_key += 1
     st.session_state.undo_stack = []
@@ -272,7 +277,7 @@ if clear_clicked:
     st.session_state.saved_shapes = None
     st.session_state.canvas_key += 1
 
-canvas_w, canvas_h = st.session_state.image_size
+cw, ch = st.session_state.image_size
 
 # ---------- Canvas ----------
 canvas_result = st_canvas(
@@ -281,8 +286,8 @@ canvas_result = st_canvas(
     stroke_color=stroke_color,
     background_image=img,
     update_streamlit=True,
-    height=canvas_h,
-    width=canvas_w,
+    height=ch,
+    width=cw,
     drawing_mode=drawing_mode,
     point_display_radius=3,
     key=f"canvas_{st.session_state.canvas_key}",
@@ -291,16 +296,16 @@ canvas_result = st_canvas(
 )
 
 if canvas_result.json_data is not None:
-    current_shapes = canvas_result.json_data
+    cur = canvas_result.json_data
     prev = st.session_state.saved_shapes
-    if prev is None or json.dumps(prev, sort_keys=True) != json.dumps(current_shapes, sort_keys=True):
-        prev_count = len(prev["objects"]) if prev and "objects" in prev else 0
-        cur_count = len(current_shapes.get("objects", []))
-        if prev and cur_count >= prev_count:
+    if prev is None or json.dumps(prev, sort_keys=True) != json.dumps(cur, sort_keys=True):
+        pc = len(prev["objects"]) if prev and "objects" in prev else 0
+        cc = len(cur.get("objects", []))
+        if prev and cc >= pc:
             st.session_state.undo_stack.append(prev)
             if len(st.session_state.undo_stack) > 50:
                 st.session_state.undo_stack.pop(0)
-        st.session_state.saved_shapes = current_shapes
+        st.session_state.saved_shapes = cur
         st.session_state.redo_stack = []
 
 # ---------- Undo / Redo ----------
@@ -331,7 +336,6 @@ def render_composite():
     base = st.session_state.uploaded_image.copy()
     if base.mode != "RGBA":
         base = base.convert("RGBA")
-
     overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
@@ -340,98 +344,76 @@ def render_composite():
         return base
 
     def parse_color(c):
-        if not c:
-            return (0, 0, 0, 255)
+        if not c: return (0, 0, 0, 255)
         if c.startswith("rgba"):
-            parts = c.strip("rgba() ").split(",")
-            r, g, b = [int(float(x)) for x in parts[:3]]
-            a = int(float(parts[3]) * 255) if len(parts) > 3 else 255
+            p = c.strip("rgba() ").split(",")
+            r, g, b = [int(float(x)) for x in p[:3]]
+            a = int(float(p[3]) * 255) if len(p) > 3 else 255
             return (r, g, b, a)
         if c.startswith("rgb"):
-            parts = c.strip("rgb() ").split(",")
-            r, g, b = [int(float(x)) for x in parts[:3]]
-            return (r, g, b, 255)
+            p = c.strip("rgb() ").split(",")
+            return tuple(int(float(x)) for x in p[:3]) + (255,)
         if c.startswith("#"):
             h = c.lstrip("#")
-            if len(h) == 6:
-                return tuple(int(h[i:i+2], 16) for i in (0, 2, 4)) + (255,)
-            if len(h) == 8:
-                return tuple(int(h[i:i+2], 16) for i in (0, 2, 4, 6))
+            if len(h) == 6: return tuple(int(h[i:i+2], 16) for i in (0, 2, 4)) + (255,)
+            if len(h) == 8: return tuple(int(h[i:i+2], 16) for i in (0, 2, 4, 6))
         return (0, 0, 0, 255)
 
     for obj in shapes["objects"]:
-        otype = obj.get("type")
+        t = obj.get("type")
         stroke = parse_color(obj.get("stroke"))
         sw = int(obj.get("strokeWidth", 3) or 3)
         fill = parse_color(obj.get("fill")) if obj.get("fill") not in (None, "", "transparent") else None
-        if fill == (0, 0, 0, 255):
-            fill = None
+        if fill == (0, 0, 0, 255): fill = None
 
-        if otype == "path":
+        if t == "path":
             pts = []
             for cmd in obj.get("path", []):
-                if cmd[0] in ("M", "L"):
-                    pts.append((cmd[1], cmd[2]))
-                elif cmd[0] == "Q":
-                    pts.append((cmd[3], cmd[4]))
+                if cmd[0] in ("M", "L"): pts.append((cmd[1], cmd[2]))
+                elif cmd[0] == "Q":       pts.append((cmd[3], cmd[4]))
             if len(pts) > 1:
                 draw.line(pts, fill=stroke, width=sw, joint="curve")
-
-        elif otype == "line":
-            draw.line(
-                [(obj.get("x1", 0), obj.get("y1", 0)), (obj.get("x2", 0), obj.get("y2", 0))],
-                fill=stroke, width=sw,
-            )
-
-        elif otype == "rect":
+        elif t == "line":
+            draw.line([(obj.get("x1", 0), obj.get("y1", 0)),
+                       (obj.get("x2", 0), obj.get("y2", 0))], fill=stroke, width=sw)
+        elif t == "rect":
             x, y = obj.get("left", 0), obj.get("top", 0)
             w = obj.get("width", 0) * obj.get("scaleX", 1)
             h = obj.get("height", 0) * obj.get("scaleY", 1)
-            draw.rectangle([x - w/2, y - h/2, x + w/2, y + h/2], outline=stroke, width=sw, fill=fill)
-
-        elif otype == "circle":
+            draw.rectangle([x-w/2, y-h/2, x+w/2, y+h/2], outline=stroke, width=sw, fill=fill)
+        elif t == "circle":
             cx, cy = obj.get("left", 0), obj.get("top", 0)
             r = obj.get("radius", 10) * max(obj.get("scaleX", 1), obj.get("scaleY", 1))
-            draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=stroke, width=sw, fill=fill)
-
-        elif otype in ("i-text", "text", "textbox"):
+            draw.ellipse([cx-r, cy-r, cx+r, cy+r], outline=stroke, width=sw, fill=fill)
+        elif t in ("i-text", "text", "textbox"):
             tx, ty = obj.get("left", 0), obj.get("top", 0)
-            text = obj.get("text", "")
+            txt = obj.get("text", "")
             fs = int(obj.get("fontSize", 20))
-            try:
-                f = ImageFont.truetype("DejaVuSans-Bold.ttf", fs)
-            except Exception:
-                f = ImageFont.load_default()
-            draw.text((tx, ty - fs), text, fill=stroke, font=f)
+            try: f = ImageFont.truetype("DejaVuSans-Bold.ttf", fs)
+            except Exception: f = ImageFont.load_default()
+            draw.text((tx, ty - fs), txt, fill=stroke, font=f)
 
     return Image.alpha_composite(base, overlay)
 
 # ---------- Export ----------
 if export_png_btn:
-    composite = render_composite()
     buf = io.BytesIO()
-    composite.convert("RGB").save(buf, format="PNG")
+    render_composite().convert("RGB").save(buf, format="PNG")
     buf.seek(0)
     st.sidebar.success("PNG ready!")
     st.sidebar.download_button(
-        "📥 Save PNG now",
-        data=buf,
-        file_name=f"cable_routing_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
-        mime="image/png",
-        use_container_width=True,
+        "📥 Save PNG now", data=buf,
+        file_name=f"cable_routing_{datetime.now():%Y%m%d_%H%M%S}.png",
+        mime="image/png", use_container_width=True,
     )
 
 if export_json_btn:
     if st.session_state.saved_shapes:
-        buf = io.BytesIO()
-        buf.write(json.dumps(st.session_state.saved_shapes, indent=2).encode())
-        buf.seek(0)
+        buf = io.BytesIO(json.dumps(st.session_state.saved_shapes, indent=2).encode())
         st.sidebar.download_button(
-            "📥 Save JSON now",
-            data=buf,
-            file_name=f"annotations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json",
-            use_container_width=True,
+            "📥 Save JSON now", data=buf,
+            file_name=f"annotations_{datetime.now():%Y%m%d_%H%M%S}.json",
+            mime="application/json", use_container_width=True,
         )
     else:
         st.sidebar.warning("No annotations to export yet.")
@@ -439,13 +421,10 @@ if export_json_btn:
 # ---------- Stats ----------
 st.divider()
 c1, c2, c3 = st.columns(3)
-with c1:
-    st.metric("Canvas", f"{canvas_w} × {canvas_h}px")
-with c2:
-    n_obj = len(st.session_state.saved_shapes.get("objects", [])) if st.session_state.saved_shapes else 0
-    st.metric("Annotations", n_obj)
-with c3:
-    st.metric("Undo steps", len(st.session_state.undo_stack))
+c1.metric("Canvas", f"{cw} × {ch}px")
+n_obj = len(st.session_state.saved_shapes.get("objects", [])) if st.session_state.saved_shapes else 0
+c2.metric("Annotations", n_obj)
+c3.metric("Undo steps", len(st.session_state.undo_stack))
 
 with st.expander("👁️ Preview exported composite (PNG)"):
-    st.image(render_composite(), use_container_width=True, caption="Final annotated floor plan")
+    st.image(render_composite(), use_container_width=True)
