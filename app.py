@@ -292,7 +292,9 @@ APP_HTML = r"""<!DOCTYPE html>
       <div><b style="color:#a5b4fc">Zoom:</b> Ctrl + scroll</div>
       <div><b style="color:#a5b4fc">Pan:</b> Space + drag</div>
       <div><b style="color:#a5b4fc">Fit:</b> press <b>F</b></div>
-      <div><b style="color:#a5b4fc">Diag:</b> press <b>Ctrl+Shift+D</b></div>
+      <div><b style="color:#a5b4fc">Axis lock:</b> Shift + drag</div>
+      <div><b style="color:#a5b4fc">Duplicate:</b> Alt + drag</div>
+      <div><b style="color:#a5b4fc">Diag:</b> Ctrl+Shift+D</div>
     </div>
   </aside>
 
@@ -389,14 +391,21 @@ function loadFabric(i = 0){
     s.src = FABRIC_CDNS[i];
     s.async = true;
     const timer = setTimeout(() => { s.onerror(); }, 8000);
-    s.onload = () => { clearTimeout(timer); window.fabric ? resolve() : reject(new Error('Script loaded but fabric undefined')); };
-    s.onerror = () => { clearTimeout(timer); s.remove(); loadFabric(i+1).then(resolve, reject); };
+    s.onload = () => {
+      clearTimeout(timer);
+      window.fabric ? resolve() : reject(new Error('Script loaded but fabric undefined'));
+    };
+    s.onerror = () => {
+      clearTimeout(timer);
+      s.remove();
+      loadFabric(i + 1).then(resolve, reject);
+    };
     document.head.appendChild(s);
   });
 }
 
 /* =====================================================================
-   2. SAFE STORAGE WRAPPER (localStorage can throw or be corrupt)
+   2. SAFE STORAGE WRAPPER
    ===================================================================== */
 const Storage = {
   KEY_DATA: 'cable_studio_v2',
@@ -411,13 +420,10 @@ const Storage = {
       return true;
     } catch(_) { return false; }
   },
-  get(key){
-    try { return localStorage.getItem(key); } catch(_) { return null; }
-  },
+  get(key){ try { return localStorage.getItem(key); } catch(_) { return null; } },
   set(key, val){
     try { localStorage.setItem(key, val); return true; }
     catch(e){
-      // quota exceeded → quarantine the payload
       try { localStorage.setItem(this.KEY_QUAR, JSON.stringify({
         ts: Date.now(), size: String(val).length, err: String(e)
       })); } catch(_){}
@@ -437,7 +443,7 @@ const Storage = {
 };
 
 /* =====================================================================
-   3. SCHEMA VALIDATION FOR IMPORTED JSON
+   3. SCHEMA VALIDATION
    ===================================================================== */
 function validateImport(obj){
   if (!obj || typeof obj !== 'object') return { ok:false, msg:'Not a JSON object' };
@@ -445,23 +451,11 @@ function validateImport(obj){
   if (!fab || typeof fab !== 'object') return { ok:false, msg:'Missing fabric payload' };
   if (!Array.isArray(fab.objects)) return { ok:false, msg:'Missing objects array' };
   if (fab.objects.length > 5000) return { ok:false, msg:'Too many objects (>5000)' };
-  const okTypes = ['path','line','rect','circle','i-text','text','textbox','group','image'];
-  for (const o of fab.objects){
-    if (!o || typeof o !== 'object') return { ok:false, msg:'Object entry invalid' };
-    if (o.type && !okTypes.includes(o.type) &&
-        !o.isBackground && !o._isAnnotation){
-      // Just warn, don't reject — Fabric may have newer types
-      console.warn('[import] unknown type', o.type);
-    }
-  }
-  if (typeof fab.width !== 'number' && typeof fab.width !== 'undefined'){
-    return { ok:false, msg:'Canvas width must be numeric' };
-  }
   return { ok:true };
 }
 
 /* =====================================================================
-   4. IMAGE DOWNSCALE GUARD (avoid 20K×20K browser freezes)
+   4. IMAGE DOWNSCALE GUARD
    ===================================================================== */
 const MAX_IMAGE_DIM = 4096;
 function downscaleIfNeeded(dataUrl){
@@ -477,7 +471,8 @@ function downscaleIfNeeded(dataUrl){
       const cv = document.createElement('canvas');
       cv.width = nw; cv.height = nh;
       cv.getContext('2d').drawImage(im, 0, 0, nw, nh);
-      resolve({ dataUrl: cv.toDataURL('image/png'), w:nw, h:nh, scaled:true, from:{w,h} });
+      resolve({ dataUrl: cv.toDataURL('image/png'), w:nw, h:nh,
+                scaled:true, from:{ w, h } });
     };
     im.onerror = () => resolve({ dataUrl, w:0, h:0, scaled:false, err:true });
     im.src = dataUrl;
@@ -502,14 +497,23 @@ function toast(msg, kind){
 /* =====================================================================
    6. STATE
    ===================================================================== */
-let canvas, currentTool = 'pen', drawing = false, startPt = null, activeShape = null;
+let canvas;
+let currentTool = 'pen';
+let drawing = false;
+let startPt = null;
+let activeShape = null;
+let drawMoved = false;          // track movement to reject clicks
 let undoStack = [], redoStack = [];
 let cableCounter = 0;
 let view = { zoom: 1, x: 0, y: 0 };
 let spaceDown = false, panning = false, panStart = null;
-let pasteLock = 0;             // debounce
-let lastSel = null;
+let pasteLock = 0;
+let altDupPending = null;       // for Alt+drag duplicate
+let altDupOriginal = null;
+let shiftAxis = null;           // 'x' | 'y' for Shift+drag axis lock
+let shiftOrigin = null;
 const CW = 1400, CH = 900;
+
 const PALETTE = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6',
                  '#8b5cf6','#ec4899','#78716c','#111827','#10b981','#f43f5e'];
 const CABLE_COLORS = {
@@ -541,18 +545,14 @@ function initCanvas(){
   canvas.on('object:removed',  () => { refreshPanels(); });
   canvas.on('selection:created', refreshPanels);
   canvas.on('selection:updated', refreshPanels);
-  canvas.on('selection:cleared', () => { lastSel = null; refreshPanels(); });
+  canvas.on('selection:cleared', refreshPanels);
 
-  canvas.on('mouse:down', opt => {
-    if (currentTool === 'erase' && opt.target){
-      canvas.remove(opt.target);
-      toast('Erased');
-    }
-  });
+  // Double-click text → inline edit
   canvas.on('mouse:dblclick', opt => {
     const t = opt.target;
     if (t && (t.type === 'i-text' || t.type === 'text' || t.type === 'textbox')){
-      t.enterEditing(); t.selectAll();
+      t.enterEditing();
+      t.selectAll();
     }
   });
 
@@ -600,7 +600,8 @@ function snapPt(p){
       let pts = [];
       if (o.type === 'line') pts = [{x:o.x1,y:o.y1},{x:o.x2,y:o.y2}];
       else if (o.type === 'rect'){
-        const l = o.left, t = o.top, w = o.width * o.scaleX, h = o.height * o.scaleY;
+        const l = o.left, t = o.top,
+              w = o.width * o.scaleX, h = o.height * o.scaleY;
         pts = [{x:l,y:t},{x:l+w,y:t},{x:l,y:t+h},{x:l+w,y:t+h}];
       } else if (o.type === 'circle'){
         pts = [{x:o.left,y:o.top},{x:o.left+2*o.radius,y:o.top+2*o.radius}];
@@ -621,18 +622,48 @@ function snapPt(p){
 }
 
 /* =====================================================================
-   10. DRAW
+   10. DRAW — with THE FIX for click-on-object creating new shapes
    ===================================================================== */
 function onDown(opt){
+  // Pan mode
   if (spaceDown){
     panning = true;
     panStart = { x: opt.e.clientX, y: opt.e.clientY };
     return;
   }
-  if (currentTool === 'select' || currentTool === 'erase') return;
 
-  const p = snapPt(canvas.getPointer(opt.e));
-  drawing = true; startPt = p;
+  // ─── ERASER: click to remove ────────────────────────────────────
+  if (currentTool === 'erase'){
+    if (opt.target && !opt.target.isBackground && !opt.target._isAnnotation){
+      canvas.remove(opt.target);
+      toast('Erased');
+    }
+    return;
+  }
+
+  // ─── SELECT: let Fabric handle everything ───────────────────────
+  if (currentTool === 'select') return;
+
+  // ════════════════════════════════════════════════════════════════
+  //   THE FIX: if user clicked on ANY existing object, don't draw.
+  //   This lets you drag labels and shapes freely with any tool.
+  // ════════════════════════════════════════════════════════════════
+  if (opt.target && !opt.target.isBackground) return;
+
+  // If a text object is being edited, don't draw
+  const active = canvas.getActiveObject();
+  if (active && active.isEditing) return;
+
+  // Deselect prior selection so free drawing starts fresh
+  if (active) canvas.discardActiveObject();
+
+  const raw = canvas.getPointer(opt.e);
+  const p = snapPt(raw);
+  drawing = true;
+  drawMoved = false;
+  startPt = p;
+  shiftAxis = null;
+  shiftOrigin = p;
 
   const sColor = $('stroke-color').value;
   const sWidth = Math.max(1, parseInt($('stroke-width').value) || 4);
@@ -647,7 +678,7 @@ function onDown(opt){
     });
     canvas.add(activeShape);
   } else if (currentTool === 'line'){
-    activeShape = new fabric.Line([p.x,p.y,p.x,p.y], {
+    activeShape = new fabric.Line([p.x, p.y, p.x, p.y], {
       stroke: sColor, strokeWidth: sWidth,
       selectable: false, evented: false,
     });
@@ -663,7 +694,7 @@ function onDown(opt){
     activeShape = new fabric.Circle({
       left: p.x, top: p.y, radius: 1,
       fill: fColor, stroke: sColor, strokeWidth: sWidth,
-      selectable: false, evented: false, originX:'left', originY:'top',
+      selectable: false, evented: false, originX: 'left', originY: 'top',
     });
     canvas.add(activeShape);
   } else if (currentTool === 'text'){
@@ -672,10 +703,15 @@ function onDown(opt){
       fill: sColor, fontSize: parseInt($('font-size').value),
       fontFamily: 'system-ui, sans-serif', fontWeight: '600',
     });
-    canvas.add(label); canvas.setActiveObject(label);
-    markDirty(); refreshPanels();
-    drawing = false; activeShape = null;
-    toast('Text added');
+    canvas.add(label);
+    canvas.setActiveObject(label);
+    markDirty();
+    refreshPanels();
+    drawing = false;
+    activeShape = null;
+    toast('Text added — double-click to edit');
+    // Auto-switch to Select so the next drag moves the label
+    setTimeout(() => setTool('select'), 60);
   }
 }
 
@@ -692,7 +728,26 @@ function onMove(opt){
   }
   if (!drawing || !activeShape) return;
 
-  const p = snapPt(raw);
+  let p = snapPt(raw);
+
+  // Shift axis-lock for line / rect
+  if (opt.e.shiftKey && (currentTool === 'line' ||
+      currentTool === 'rect' || currentTool === 'circle')){
+    const dx = Math.abs(p.x - startPt.x);
+    const dy = Math.abs(p.y - startPt.y);
+    if (!shiftAxis){
+      shiftAxis = dx > dy ? 'x' : 'y';
+    }
+    if (shiftAxis === 'x') p = { x: p.x, y: startPt.y };
+    else                    p = { x: startPt.x, y: p.y };
+  } else if (!opt.e.shiftKey){
+    shiftAxis = null;
+  }
+
+  // Track movement threshold (>6px = real drag)
+  if (!drawMoved && Math.hypot(p.x - startPt.x, p.y - startPt.y) > 6){
+    drawMoved = true;
+  }
 
   if (currentTool === 'pen'){
     activeShape.path.push(['L', p.x, p.y]);
@@ -722,34 +777,53 @@ function onMove(opt){
   canvas.requestRenderAll();
 }
 
-function onUp(){
+function onUp(opt){
   if (panning){ panning = false; panStart = null; return; }
   if (!drawing) return;
   drawing = false;
   $('measure').style.display = 'none';
 
-  if (!activeShape){ return; }
+  if (!activeShape){ shiftAxis = null; return; }
 
-  // Reject zero-size accidental clicks
+  // ─── Reject accidental quick clicks (no real drag) ──────────────
+  // Freehand pen: require >6px movement OR >180ms hold
+  // Geometry tools: require drawMoved flag
+  const isPen = activeShape.type === 'path';
+  if (!drawMoved && !isPen){
+    canvas.remove(activeShape);
+    activeShape = null;
+    shiftAxis = null;
+    return;
+  }
+  if (isPen && activeShape.path.length < 3 && !drawMoved){
+    canvas.remove(activeShape);
+    activeShape = null;
+    return;
+  }
+
+  // Reject zero-size shapes
   try {
     if (activeShape.type === 'line'){
       const len = Math.hypot(activeShape.x2 - activeShape.x1,
                              activeShape.y2 - activeShape.y1);
-      if (len < 3){ canvas.remove(activeShape); activeShape = null; return; }
+      if (len < 3){ canvas.remove(activeShape); activeShape = null; shiftAxis = null; return; }
     }
     if (activeShape.type === 'rect'){
       if (activeShape.width < 3 || activeShape.height < 3){
-        canvas.remove(activeShape); activeShape = null; return;
+        canvas.remove(activeShape); activeShape = null; shiftAxis = null; return;
       }
     }
     if (activeShape.type === 'circle'){
-      if (activeShape.radius < 3){ canvas.remove(activeShape); activeShape = null; return; }
+      if (activeShape.radius < 3){
+        canvas.remove(activeShape); activeShape = null; shiftAxis = null; return;
+      }
     }
   } catch(_) {}
 
   activeShape.set({ selectable: true, evented: true });
   canvas.setActiveObject(activeShape);
 
+  // Auto-length-label for lines
   if (activeShape.type === 'line' && $('show-length').checked){
     const dx = activeShape.x2 - activeShape.x1;
     const dy = activeShape.y2 - activeShape.y1;
@@ -768,8 +842,10 @@ function onUp(){
   }
 
   activeShape = null;
+  shiftAxis = null;
   canvas.requestRenderAll();
-  markDirty(); refreshPanels();
+  markDirty();
+  refreshPanels();
 }
 
 /* =====================================================================
@@ -781,8 +857,9 @@ function setTool(tool){
     b.classList.toggle('active', b.dataset.tool === tool));
   canvas.selection = tool === 'select';
   canvas.forEachObject(o => {
-    o.selectable = tool === 'select';
-    o.evented = tool !== 'pen';
+    o.selectable = tool === 'select' || tool === 'erase' || true;
+    // Keep annotation labels always evented for drag
+    o.evented = true;
   });
   document.body.style.cursor = tool === 'select' ? 'default' : 'crosshair';
 }
@@ -791,7 +868,45 @@ document.querySelectorAll('[data-tool]').forEach(b => {
 });
 
 /* =====================================================================
-   12. PALETTE
+   12. ALT+DRAG DUPLICATE + SHIFT AXIS LOCK FOR OBJECTS
+   (uses Fabric's built-in object:moving hook)
+   ===================================================================== */
+function installObjectMoveHelpers(){
+  canvas.on('mouse:down', opt => {
+    // Alt held + clicked an object → clone it in place, drag the clone
+    if (opt.e.altKey && opt.target && !opt.target.isBackground){
+      const orig = opt.target;
+      orig.clone(c => {
+        c.set({ left: orig.left, top: orig.top,
+                evented: true, selectable: true });
+        canvas.add(c);
+        canvas.setActiveObject(c);
+        canvas.renderAll();
+        toast('Duplicated (Alt+drag)');
+      });
+    }
+  });
+
+  canvas.on('object:moving', opt => {
+    // Shift → lock movement to axis of first significant motion
+    if (!opt.e.shiftKey) return;
+    const o = opt.target;
+    if (!shiftOrigin){
+      shiftOrigin = { x: o.left, y: o.top };
+    }
+    const dx = Math.abs(o.left - shiftOrigin.x);
+    const dy = Math.abs(o.top - shiftOrigin.y);
+    if (dx > dy) o.set('top', shiftOrigin.y);
+    else         o.set('left', shiftOrigin.x);
+  });
+
+  canvas.on('mouse:up', () => {
+    if (shiftOrigin) shiftOrigin = null;
+  });
+}
+
+/* =====================================================================
+   13. PALETTE
    ===================================================================== */
 function buildPalette(){
   const wrap = $('palette');
@@ -813,10 +928,10 @@ function buildPalette(){
 }
 
 /* =====================================================================
-   13. HISTORY
+   14. HISTORY
    ===================================================================== */
 const MAX_HISTORY = 80;
-const MAX_HISTORY_BYTES = 4_000_000; // ~4 MB of JSON strings
+const MAX_HISTORY_BYTES = 4_000_000;
 
 function serialize(){
   try {
@@ -837,12 +952,10 @@ function markDirty(){
   saveTimer = setTimeout(saveLocal, 800);
   pushHistory();
 }
-
 function pushHistory(){
   const j = serialize();
   if (undoStack[undoStack.length - 1] === j) return;
   undoStack.push(j);
-  // Byte cap
   while (undoStack.length > MAX_HISTORY ||
          undoStack.reduce((a,s)=>a+s.length,0) > MAX_HISTORY_BYTES){
     undoStack.shift();
@@ -850,7 +963,6 @@ function pushHistory(){
   redoStack = [];
   updateHud();
 }
-
 function undo(){
   if (undoStack.length < 2){ toast('Nothing to undo', 'warn'); return; }
   redoStack.push(undoStack.pop());
@@ -869,10 +981,7 @@ function applySnapshot(j){
   try {
     canvas.loadFromJSON(j, () => {
       if (bg) canvas.setBackgroundImage(bg, canvas.renderAll.bind(canvas));
-      canvas.forEachObject(o => {
-        o.selectable = currentTool === 'select';
-        o.evented = currentTool !== 'pen';
-      });
+      canvas.forEachObject(o => { o.evented = true; });
       canvas.renderAll();
       refreshPanels();
     });
@@ -882,7 +991,7 @@ function applySnapshot(j){
 }
 
 /* =====================================================================
-   14. ACTIONS
+   15. ACTIONS
    ===================================================================== */
 function clearAll(){
   const n = canvas.getObjects().length;
@@ -925,7 +1034,7 @@ function resetCounter(){
 }
 
 /* =====================================================================
-   15. IMAGE LOADING WITH GUARDRAILS
+   16. IMAGE LOADING
    ===================================================================== */
 async function loadImage(dataUrl, name){
   if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')){
@@ -950,7 +1059,7 @@ async function loadImage(dataUrl, name){
       $('drop-hint').style.display = 'none';
       fitView();
       toast(`Loaded ${name || 'image'} (${img.width}×${img.height})`);
-    }, { crossOrigin: 'anonymous' });
+    });
   } catch(e){
     toast('Image load failed: ' + e.message, 'err');
   }
@@ -959,9 +1068,7 @@ async function loadImage(dataUrl, name){
 $('file-input').onchange = e => {
   const f = e.target.files[0];
   if (!f) return;
-  if (f.size > 30 * 1024 * 1024){
-    toast('File too large (>30 MB)', 'err'); return;
-  }
+  if (f.size > 30 * 1024 * 1024){ toast('File too large (>30 MB)', 'err'); return; }
   const r = new FileReader();
   r.onerror = () => toast('File read failed', 'err');
   r.onload = ev => loadImage(ev.target.result, f.name);
@@ -970,7 +1077,7 @@ $('file-input').onchange = e => {
 
 document.addEventListener('paste', e => {
   const now = Date.now();
-  if (now - pasteLock < 500) return;   // debounce duplicate events
+  if (now - pasteLock < 500) return;
   const items = (e.clipboardData || {}).items || [];
   for (const it of items){
     if (it.kind === 'file' && it.type.startsWith('image/')){
@@ -1013,7 +1120,7 @@ $('opacity').oninput = e => {
 };
 
 /* =====================================================================
-   16. VIEW
+   17. VIEW
    ===================================================================== */
 function applyView(){
   $('canvas-holder').style.transform =
@@ -1067,9 +1174,14 @@ window.addEventListener('mousemove', e => {
 });
 
 /* =====================================================================
-   17. PANELS
+   18. PANELS
    ===================================================================== */
-function refreshPanels(){ refreshLegend(); refreshLayers(); updateHud(); updateStorageInfo(); }
+function refreshPanels(){
+  refreshLegend();
+  refreshLayers();
+  updateHud();
+  updateStorageInfo();
+}
 
 function refreshLegend(){
   const items = {};
@@ -1107,11 +1219,22 @@ function refreshLayers(){
     el.className = 'layer' + (active === o ? ' sel' : '');
     const icon = { path:'🖊️', line:'📏', rect:'⬛', circle:'⭕',
                    'i-text':'🔤', text:'🔤', textbox:'🔤', group:'📦' }[o.type] || '▪';
-    const name = (o.text || CABLE_COLORS[String(o.stroke || '').toLowerCase()] || o.type || '?').slice(0, 22);
+    const name = (o.text ||
+      CABLE_COLORS[String(o.stroke || '').toLowerCase()] ||
+      o.type || '?').slice(0, 22);
     el.innerHTML = `<span class="lyr-icon">${icon}</span>
                     <span class="lyr-name">${name}</span>`;
-    el.onclick = () => { canvas.setActiveObject(o); canvas.renderAll(); refreshLayers(); };
-    el.ondblclick = () => { o.visible = false; canvas.renderAll(); refreshLayers(); toast('Hidden'); };
+    el.onclick = () => {
+      canvas.setActiveObject(o);
+      canvas.renderAll();
+      refreshLayers();
+    };
+    el.ondblclick = () => {
+      o.visible = false;
+      canvas.renderAll();
+      refreshLayers();
+      toast('Hidden');
+    };
     list.appendChild(el);
   });
   if (!objs.length){
@@ -1149,7 +1272,7 @@ function toggleLayers(){
 }
 
 /* =====================================================================
-   18. EXPORT
+   19. EXPORT
    ===================================================================== */
 function download(blob, name){
   const a = document.createElement('a');
@@ -1170,11 +1293,17 @@ function exportPNG(){
 
     const gridOn = $('show-grid').checked;
     const savedBgColor = canvas.backgroundColor;
-    if (gridOn){ canvas.setBackgroundColor('transparent', () => {}); canvas.renderAll(); }
+    if (gridOn){
+      canvas.setBackgroundColor('transparent', () => {});
+      canvas.renderAll();
+    }
 
     const url = canvas.toDataURL({ format:'png', multiplier:scale, quality:1 });
 
-    if (gridOn){ drawGridOverlay(); canvas.backgroundColor = savedBgColor; }
+    if (gridOn){
+      drawGridOverlay();
+      canvas.backgroundColor = savedBgColor;
+    }
     if (sel) canvas.setActiveObject(sel);
     canvas.renderAll();
 
@@ -1193,8 +1322,10 @@ function exportJSON(){
       version: 2,
       exported: new Date().toISOString(),
       canvas: { width: canvas.getWidth(), height: canvas.getHeight() },
-      scale: { m_per_px: parseFloat($('scale-m').value || 0.05),
-               unit: $('unit-label').value || 'm' },
+      scale: {
+        m_per_px: parseFloat($('scale-m').value || 0.05),
+        unit: $('unit-label').value || 'm',
+      },
       counter: cableCounter,
       fabric: canvas.toJSON(['selectable','evented','isBackground',
                              '_isCable','_isAnnotation']),
@@ -1244,7 +1375,7 @@ $('json-input').onchange = e => {
 };
 
 /* =====================================================================
-   19. STORAGE / AUTOSAVE
+   20. STORAGE / AUTOSAVE
    ===================================================================== */
 function saveLocal(){
   if (!Storage.available()) return;
@@ -1261,7 +1392,6 @@ function loadLocal(){
   let parsed;
   try { parsed = JSON.parse(j); }
   catch(e){
-    // Corrupt — quarantine & wipe
     Storage.set(Storage.KEY_QUAR, j.slice(0, 2000));
     Storage.del(Storage.KEY_DATA);
     toast('Corrupt session cleared', 'warn');
@@ -1292,18 +1422,16 @@ function loadLocal(){
 }
 
 /* =====================================================================
-   20. KEYBOARD
+   21. KEYBOARD
    ===================================================================== */
 document.addEventListener('keydown', e => {
   const editing = e.target.tagName === 'INPUT' || e.target.isContentEditable;
 
-  // Diagnostics: Ctrl+Shift+D
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd'){
     e.preventDefault();
     runDiagnostics();
     return;
   }
-
   if (editing) return;
 
   if (e.code === 'Space'){
@@ -1323,7 +1451,8 @@ document.addEventListener('keydown', e => {
       const objs = canvas.getObjects().filter(o => !o.isBackground);
       if (!objs.length){ toast('Nothing to select', 'warn'); return; }
       const sel = new fabric.ActiveSelection(objs, { canvas });
-      canvas.setActiveObject(sel); canvas.renderAll();
+      canvas.setActiveObject(sel);
+      canvas.renderAll();
     }
     return;
   }
@@ -1339,13 +1468,14 @@ document.addEventListener('keydown', e => {
   else if (k === 'f') fitView();
   else if (k === 'escape'){ canvas.discardActiveObject(); canvas.renderAll(); }
 });
+
 document.addEventListener('keyup', e => {
   if (e.code === 'Space'){
     spaceDown = false;
     document.body.style.cursor = currentTool === 'select' ? 'default' : 'crosshair';
   }
 });
-// Cleanup if window loses focus mid-draw
+
 window.addEventListener('blur', () => {
   spaceDown = false; panning = false; panStart = null;
   if (drawing){ drawing = false; $('measure').style.display = 'none'; }
@@ -1358,7 +1488,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* =====================================================================
-   21. DIAGNOSTICS
+   22. DIAGNOSTICS
    ===================================================================== */
 function runDiagnostics(){
   const lines = [];
@@ -1371,7 +1501,8 @@ function runDiagnostics(){
   lines.push('Objects: ' + canvas.getObjects().length);
   lines.push('Undo depth: ' + undoStack.length);
   lines.push('Redo depth: ' + redoStack.length);
-  lines.push('View: zoom=' + view.zoom.toFixed(2) + ' x=' + Math.round(view.x) + ' y=' + Math.round(view.y));
+  lines.push('View: zoom=' + view.zoom.toFixed(2) +
+             ' x=' + Math.round(view.x) + ' y=' + Math.round(view.y));
   lines.push('User agent: ' + navigator.userAgent);
   if (Storage.get(Storage.KEY_QUAR)){
     lines.push('⚠ Last quarantine: ' + Storage.get(Storage.KEY_QUAR));
@@ -1379,13 +1510,14 @@ function runDiagnostics(){
   const txt = lines.join('\n');
   console.log(txt);
   try {
-    download(new Blob([txt], { type:'text/plain' }), 'diagnostics_' + Date.now() + '.txt');
+    download(new Blob([txt], { type:'text/plain' }),
+             'diagnostics_' + Date.now() + '.txt');
     toast('Diagnostics downloaded');
   } catch(e){ toast('Diag: see console', 'warn'); }
 }
 
 /* =====================================================================
-   22. SESSION BACKUP / RESET
+   23. SESSION BACKUP / RESET
    ===================================================================== */
 $('btn-export-session').onclick = () => exportJSON();
 $('btn-reset-session').onclick = () => {
@@ -1398,11 +1530,14 @@ $('btn-reset-session').onclick = () => {
 };
 
 /* =====================================================================
-   23. BINDINGS
+   24. BINDINGS
    ===================================================================== */
 $('stroke-width').oninput = e => $('sw-val').textContent = e.target.value + 'px';
 $('font-size').oninput    = e => $('fs-val').textContent = e.target.value + 'px';
-$('grid-size').oninput    = e => { $('grid-val').textContent = e.target.value + 'px'; drawGridOverlay(); };
+$('grid-size').oninput    = e => {
+  $('grid-val').textContent = e.target.value + 'px';
+  drawGridOverlay();
+};
 $('show-grid').onchange   = drawGridOverlay;
 $('stroke-color').oninput = () => {
   document.querySelectorAll('.swatch').forEach(s => {
@@ -1433,12 +1568,13 @@ $('toggle-layers').onclick = toggleLayers;
 $('legend-close').onclick = toggleLegend;
 
 /* =====================================================================
-   24. IFRAME / STREAMLIT HEIGHT SYNC
+   25. IFRAME / STREAMLIT HEIGHT SYNC
    ===================================================================== */
 function syncFrameHeight(){
   try {
     if (window.Streamlit && window.Streamlit.setFrameHeight){
-      window.Streamlit.setFrameHeight(document.body.scrollHeight || window.innerHeight);
+      window.Streamlit.setFrameHeight(
+        document.body.scrollHeight || window.innerHeight);
     }
   } catch(_){}
 }
@@ -1446,10 +1582,10 @@ if (typeof ResizeObserver !== 'undefined'){
   new ResizeObserver(syncFrameHeight).observe(document.body);
 }
 window.addEventListener('resize', syncFrameHeight);
-setInterval(syncFrameHeight, 3000);   // periodic safety net
+setInterval(syncFrameHeight, 3000);
 
 /* =====================================================================
-   25. BOOT SEQUENCE
+   26. BOOT
    ===================================================================== */
 (async function boot(){
   try {
@@ -1458,6 +1594,7 @@ setInterval(syncFrameHeight, 3000);   // periodic safety net
 
     Boot.show('Initializing canvas…');
     initCanvas();
+    installObjectMoveHelpers();
     buildPalette();
     $('counter-val').textContent = 'C-01';
 
@@ -1468,7 +1605,7 @@ setInterval(syncFrameHeight, 3000);   // periodic safety net
       const restored = loadLocal();
       if (!restored) toast('Ready — paste or drop a floor plan');
       Boot.ready();
-      // Warn on unsaved work
+
       window.addEventListener('beforeunload', e => {
         if (drawing){ e.preventDefault(); e.returnValue = ''; }
       });
@@ -1479,7 +1616,7 @@ setInterval(syncFrameHeight, 3000);   // periodic safety net
     Boot.error('Startup failed',
       `Could not initialize the app.<br><br>
        <code>${e.message}</code><br><br>
-       Try: <br>
+       Try:<br>
        • Refresh the page<br>
        • Disable ad-blockers for this site<br>
        • Check browser console (F12) for details`);
