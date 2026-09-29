@@ -181,25 +181,25 @@ APP_HTML = r"""<!DOCTYPE html>
   <div id="topstrip">
     <div class="logo">📡 Telecom Site Studio</div>
     <div class="sep"></div>
-    <button id="tb-new" title="New site plan">🆕 New</button>
-    <button id="tb-open" title="Open image">📁 Open Image</button>
-    <button id="tb-paste" title="Paste image">📋 Paste Img</button>
-    <button id="tb-load-json" title="Load layout">📂 Load Layout</button>
-    <button id="tb-save-json" title="Save layout">💾 Save Layout</button>
+    <button id="tb-new">🆕 New</button>
+    <button id="tb-open">📁 Open Image</button>
+    <button id="tb-paste">📋 Paste Img</button>
+    <button id="tb-load-json">📂 Load Layout</button>
+    <button id="tb-save-json">💾 Save Layout</button>
     <div class="sep"></div>
-    <button id="tb-copy" title="Copy (Ctrl+C)">📄 Copy</button>
-    <button id="tb-paste-obj" title="Paste (Ctrl+V)">📋 Paste</button>
-    <button id="tb-cut" title="Cut (Ctrl+X)">✂️ Cut</button>
+    <button id="tb-copy">📄 Copy</button>
+    <button id="tb-paste-obj">📋 Paste</button>
+    <button id="tb-cut">✂️ Cut</button>
     <div class="sep"></div>
-    <button id="tb-undo" title="Undo Ctrl+Z">↩️</button>
-    <button id="tb-redo" title="Redo Ctrl+Y">↪️</button>
+    <button id="tb-undo">↩️</button>
+    <button id="tb-redo">↪️</button>
     <div class="sep"></div>
-    <button id="tb-zoom-fit" title="Fit (F)">🎯 Fit</button>
+    <button id="tb-zoom-fit">🎯 Fit</button>
     <button id="tb-zoom-in">＋</button>
     <button id="tb-zoom-out">－</button>
     <div class="sep"></div>
-    <button id="tb-export-png" title="Export PNG">🖼️ PNG</button>
-    <button id="tb-print" title="Print (A3)">🖨️ Print</button>
+    <button id="tb-export-png">🖼️ PNG</button>
+    <button id="tb-print">🖨️ Print</button>
     <div class="filelabel">
       <span id="file-label">Untitled Site Plan</span>
     </div>
@@ -228,6 +228,8 @@ APP_HTML = r"""<!DOCTYPE html>
     <div class="stencil-grid">
       <div class="stencil" data-stencil="gate_2door"><span>🚪</span>Gate (2-Door)</div>
       <div class="stencil" data-stencil="fence"><span>🔲</span>Boundary Fence</div>
+      <div class="stencil" data-stencil="cement_fence"><span>🧱</span>Cement Fence</div>
+      <div class="stencil" data-stencil="cement_fence_post"><span>🏛️</span>Cement Post</div>
     </div>
     <h4>🏢 Cabin / Shelter</h4>
     <div class="stencil-grid">
@@ -430,14 +432,13 @@ APP_HTML = r"""<!DOCTYPE html>
 
     <h3>❓ Help</h3>
     <div class="psection" style="font-size:.68rem;color:#8b9dc3;line-height:1.7">
-      <div><b style="color:#a5b4fc">Copy:</b> Ctrl+C</div>
-      <div><b style="color:#a5b4fc">Paste:</b> Ctrl+V (offsets +20px)</div>
+      <div><b style="color:#a5b4fc">Stretch:</b> drag corner — length extends, thickness stays</div>
+      <div><b style="color:#a5b4fc">Copy:</b> Ctrl+C / <b>Paste:</b> Ctrl+V</div>
       <div><b style="color:#a5b4fc">Cut:</b> Ctrl+X</div>
       <div><b style="color:#a5b4fc">Duplicate:</b> Ctrl+D or Alt+drag</div>
       <div><b style="color:#a5b4fc">Zoom:</b> Ctrl + scroll</div>
       <div><b style="color:#a5b4fc">Pan:</b> Space + drag or H</div>
       <div><b style="color:#a5b4fc">Fit:</b> F</div>
-      <div><b style="color:#a5b4fc">Finish polyline:</b> Enter</div>
     </div>
   </aside>
 
@@ -462,7 +463,7 @@ APP_HTML = r"""<!DOCTYPE html>
 
 <script>
 /* =====================================================================
-   0. BOOT + ERROR BOUNDARY
+   0. BOOT
    ===================================================================== */
 const Boot = {
   show(m){ document.getElementById('boot-msg').textContent = m; },
@@ -527,8 +528,8 @@ function loadFabric(i = 0){
    2. STORAGE
    ===================================================================== */
 const Storage = {
-  KEY: 'telecom_site_v4',
-  KEY_CTR: 'telecom_site_ctr_v4',
+  KEY: 'telecom_site_v5',
+  KEY_CTR: 'telecom_site_ctr_v5',
   available(){
     try { const k='__t'+Math.random(); localStorage.setItem(k,'1');
           localStorage.removeItem(k); return true; } catch(_){ return false; }
@@ -557,7 +558,6 @@ let pendingLabelId = null;
 let drawing = false, startPt = null, activeShape = null, drawMoved = false;
 let polyPoints = [], polyPreview = null;
 let undoStack = [], redoStack = [];
-let cableCounter = 0;
 let view = { zoom: 1, x: 0, y: 0 };
 let spaceDown = false, panning = false, panStart = null;
 let pasteLock = 0;
@@ -567,8 +567,9 @@ let showDims = true;
 let fileName = 'Untitled Site Plan';
 let uidCounter = 1;
 let lockRatio = false;
-let clipboard = [];     // ★ internal clipboard for copy/paste
+let clipboard = [];
 let clipboardOffset = 0;
+let suppressPanelSync = false;
 const CW = 1600, CH = 1000;
 const M2PX = 20;
 
@@ -579,10 +580,160 @@ const PALETTE = ['#334155','#64748b','#94a3b8','#cbd5e1','#f8fafc','#000000',
 const CUSTOM_PROPS = ['selectable','evented','isBackground',
                       '_isCable','_isAnnotation','_isDimension',
                       '_stencilLabel','_isStencilLabel','_labelKind',
-                      '_uid','_originalWidth','_originalHeight','_boundTo'];
+                      '_uid','_originalWidth','_originalHeight','_boundTo',
+                      '_stretchable','_baseThickness','_minLength'];
 
 /* =====================================================================
-   4. FABRIC PROTOTYPE
+   4. ★ DYNAMIC STRETCH — the core fix
+   =====================================================================
+   Problem: Fabric scales the entire object including stroke → a 4px thick
+   line becomes 4 × scaleX thick when stretched.
+
+   Solution:
+   1) Every shape gets `strokeUniform: true` → stroke ignores scale.
+   2) For SHAPES that should only extend along one axis (walls, fences,
+      basepads, cable trays, etc.) we hook `object:scaling` and:
+        a) lock the perpendicular axis so thickness stays constant
+        b) rewrite the object's base `width`/`height` from the new
+           visually-scaled size and reset `scaleX`/`scaleY` back to 1
+   3) For LINES we hook `object:scaling` and update x1/y1/x2/y2 to their
+      scaled pixel positions, then reset scale to 1 — so the line is
+      truly longer, not a stretched line image.
+   ===================================================================== */
+
+function applyStrokeUniform(obj){
+  if (!obj || obj.isBackground) return;
+  obj.set({ strokeUniform: true });
+}
+
+function installDynamicStretch(){
+  // Make sure the very first shapes get the flag
+  fabric.Object.prototype.set({ strokeUniform: true });
+
+  canvas.on('object:added', opt => {
+    if (opt.target && !opt.target.isBackground){
+      applyStrokeUniform(opt.target);
+    }
+  });
+
+  canvas.on('object:scaling', opt => {
+    const o = opt.target;
+    if (!o || o.isBackground) return;
+    const e = opt.e;
+
+    // ---- LINES: extend endpoints, reset scale ----
+    if (o.type === 'line'){
+      extendLine(o);
+      return;
+    }
+
+    // ---- Objects flagged _stretchable with thickness lock ----
+    if (o._stretchable){
+      const axis = o._stretchAxis || 'x';   // 'x' = horizontal only, 'y' = vertical only
+      const minLen = o._minLength || 10;
+      const sx = o.scaleX || 1, sy = o.scaleY || 1;
+
+      if (axis === 'x'){
+        // Lock thickness (Y)
+        o.scaleY = 1;
+        // Enforce minimum length
+        const visualW = (o.width || 1) * sx;
+        if (visualW < minLen){
+          o.scaleX = minLen / (o.width || 1);
+        }
+      } else {
+        o.scaleX = 1;
+        const visualH = (o.height || 1) * sy;
+        if (visualH < minLen){
+          o.scaleY = minLen / (o.height || 1);
+        }
+      }
+
+      // If SHIFT is held, keep ratio but still lock perpendicular to 1 — no-op here.
+      o.setCoords();
+      return;
+    }
+
+    // ---- Groups: keep aspect ratio optional but always keep strokeUniform ----
+    if (o.type === 'group'){
+      o.forEachObject(child => {
+        if (!child._stretchable) child.set({ strokeUniform: true });
+      });
+    }
+  });
+
+  // After scaling ends, bake the visual size into width/height and reset scale
+  canvas.on('object:modified', opt => {
+    const o = opt.target;
+    if (!o || o.isBackground) return;
+    if (o.type === 'line'){ extendLine(o); markDirty(); return; }
+    if (o._stretchable){
+      bakeScale(o);
+      markDirty();
+      syncSelectionPanel();
+    }
+  });
+}
+
+/* Extend a Line's endpoints to match the currently scaled visual size,
+   then reset scale back to 1 — the line is truly longer, not stretched. */
+function extendLine(line){
+  const sx = line.scaleX || 1;
+  const sy = line.scaleY || 1;
+  if (Math.abs(sx - 1) < 0.0001 && Math.abs(sy - 1) < 0.0001) return;
+
+  // Line's native endpoints are stored relative to its bbox center.
+  // The scale multiplies them. To extend, compute new absolute positions.
+  const x1 = line.x1, y1 = line.y1, x2 = line.x2, y2 = line.y2;
+  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+
+  const nx1 = cx + (x1 - cx) * sx;
+  const ny1 = cy + (y1 - cy) * sy;
+  const nx2 = cx + (x2 - cx) * sx;
+  const ny2 = cy + (y2 - cy) * sy;
+
+  line.set({
+    x1: nx1, y1: ny1, x2: nx2, y2: ny2,
+    scaleX: 1, scaleY: 1,
+  });
+  line.setCoords();
+  canvas.requestRenderAll();
+}
+
+/* Bake visual size into width/height, reset scale to 1.
+   This lets thickness stay as `strokeWidth` while length is real. */
+function bakeScale(o){
+  const sx = o.scaleX || 1;
+  const sy = o.scaleY || 1;
+  if (Math.abs(sx - 1) < 0.0001 && Math.abs(sy - 1) < 0.0001) return;
+  if (!o.width || !o.height) return;
+
+  // Store original sizes for reset
+  if (!o._originalWidth)  o._originalWidth  = o.width;
+  if (!o._originalHeight) o._originalHeight = o.height;
+
+  const newW = Math.max(1, o.width * sx);
+  const newH = Math.max(1, o.height * sy);
+
+  // Adjust position so the center stays put
+  const cx = o.left + (o.width * sx) / 2;
+  const cy = o.top  + (o.height * sy) / 2;
+
+  o.set({
+    width: newW,
+    height: newH,
+    scaleX: 1,
+    scaleY: 1,
+    left: cx - newW / 2,
+    top:  cy - newH / 2,
+    strokeUniform: true,
+  });
+  o.setCoords();
+  canvas.requestRenderAll();
+}
+
+/* =====================================================================
+   5. FABRIC PROTOTYPE — tight selection
    ===================================================================== */
 function tightenSelectionBoxes(){
   fabric.Object.prototype.set({
@@ -596,31 +747,33 @@ function tightenSelectionBoxes(){
     borderScaleFactor: 1,
     borderOpacityWhenMoving: 0.6,
     perPixelTargetFind: true,
+    strokeUniform: true,
   });
 }
 
 /* =====================================================================
-   5. SYMBOL PRIMITIVES
+   6. SYMBOL PRIMITIVES
    ===================================================================== */
 function uid(){ return 'o' + (uidCounter++); }
 function mkLine(x1,y1,x2,y2, opt){
   return new fabric.Line([x1,y1,x2,y2], Object.assign({
     stroke:'#0f172a', strokeWidth:1.5, selectable:true, evented:true,
-    strokeLineCap:'round'
+    strokeLineCap:'round', strokeUniform: true
   }, opt||{}));
 }
 function mkRect(x,y,w,h, opt){
   return new fabric.Rect(Object.assign({
     left:x, top:y, width:w, height:h,
     fill:'rgba(203,213,225,0.5)', stroke:'#0f172a', strokeWidth:1.5,
-    selectable:true, evented:true
+    selectable:true, evented:true, strokeUniform: true
   }, opt||{}));
 }
 function mkCircle(cx,cy,r, opt){
   return new fabric.Circle(Object.assign({
     left:cx-r, top:cy-r, radius:r,
     fill:'rgba(203,213,225,0.5)', stroke:'#0f172a', strokeWidth:1.5,
-    selectable:true, evented:true, originX:'left', originY:'top'
+    selectable:true, evented:true, originX:'left', originY:'top',
+    strokeUniform: true
   }, opt||{}));
 }
 function mkText(s,x,y,size, opt){
@@ -630,8 +783,10 @@ function mkText(s,x,y,size, opt){
     fontWeight:'600', selectable:true, evented:true
   }, opt||{}));
 }
-function mkGroup(objs, label){
-  const g = new fabric.Group(objs, { selectable:true, evented:true });
+function mkGroup(objs, label, opts){
+  const g = new fabric.Group(objs, Object.assign({
+    selectable:true, evented:true, strokeUniform: true
+  }, opts||{}));
   if (label) g._stencilLabel = label;
   g._uid = uid();
   return g;
@@ -681,8 +836,17 @@ function makeDetachedLabel(text, x, y, opt){
   return lbl;
 }
 
+/* ★ Helper: mark an object as stretchable along one axis */
+function makeStretchable(obj, axis, minLen){
+  obj._stretchable = true;
+  obj._stretchAxis = axis || 'x';
+  obj._minLength = minLen || 20;
+  obj._baseThickness = axis === 'x' ? obj.height : obj.width;
+  return obj;
+}
+
 /* =====================================================================
-   6. ★ STENCIL LIBRARY
+   7. STENCIL LIBRARY
    ===================================================================== */
 const STENCILS = {
 
@@ -693,19 +857,22 @@ const STENCILS = {
     parts.push(mkRect(W-H, 0, H, H, { fill:'#64748b', stroke:'#0f172a' }));
     parts.push(mkLine(H, H/2, W-H, H/2, { stroke:'#0f172a', strokeWidth:2 }));
     parts.push(new fabric.Path(`M ${H} ${H/2} L ${H} ${H/2 - W*0.45}`,
-      { stroke:'#0f172a', strokeWidth:1, fill:'', selectable:false }));
+      { stroke:'#0f172a', strokeWidth:1, fill:'', selectable:false, strokeUniform: true }));
     parts.push(new fabric.Path(
       `M ${H} ${H/2 - W*0.45} A ${W*0.45} ${W*0.45} 0 0 1 ${H + W*0.45} ${H/2}`,
-      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[3,2], selectable:false }));
+      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[3,2],
+        selectable:false, strokeUniform: true }));
     parts.push(new fabric.Path(`M ${W-H} ${H/2} L ${W-H} ${H/2 - W*0.45}`,
-      { stroke:'#0f172a', strokeWidth:1, fill:'', selectable:false }));
+      { stroke:'#0f172a', strokeWidth:1, fill:'', selectable:false, strokeUniform: true }));
     parts.push(new fabric.Path(
       `M ${W-H} ${H/2 - W*0.45} A ${W*0.45} ${W*0.45} 0 0 0 ${W-H - W*0.45} ${H/2}`,
-      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[3,2], selectable:false }));
+      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[3,2],
+        selectable:false, strokeUniform: true }));
     return { group: mkGroup(parts, 'Gate'), labels: [
       { text:'GATE 2-DOOR', x: 0, y: -18, kind:'equipment' }
     ]};
   },
+
   fence(){
     const W = 5*M2PX, H = 3;
     const parts = [
@@ -719,6 +886,56 @@ const STENCILS = {
     return { group: mkGroup(parts, 'Fence'), labels: [] };
   },
 
+  /* ★ NEW: Cement Fence — concrete wall with posts and panel joints */
+  cement_fence(){
+    const W = 6*M2PX;
+    const H = 10;                 // wall thickness in px (≈0.5m at 20px/m)
+    const parts = [];
+    // Main concrete wall body
+    parts.push(mkRect(0, 0, W, H, {
+      fill:'#a8a29e', stroke:'#44403c', strokeWidth:2
+    }));
+    // Post joints (thicker vertical lines)
+    const postSpacing = 60;
+    for (let x = postSpacing; x < W; x += postSpacing){
+      parts.push(mkRect(x - 3, -2, 6, H + 4, {
+        fill:'#78716c', stroke:'#1c1917', strokeWidth:1.2
+      }));
+    }
+    // End posts
+    parts.push(mkRect(-3, -2, 6, H + 4, {
+      fill:'#78716c', stroke:'#1c1917', strokeWidth:1.2
+    }));
+    parts.push(mkRect(W - 3, -2, 6, H + 4, {
+      fill:'#78716c', stroke:'#1c1917', strokeWidth:1.2
+    }));
+    // Concrete hatch texture
+    for (let x = 6; x < W - 6; x += 8){
+      parts.push(mkLine(x, 2, x, H - 2, {
+        stroke:'#78716c', strokeWidth:0.5, opacity:0.55
+      }));
+    }
+    // Center line (wall axis)
+    parts.push(mkLine(0, H/2, W, H/2, {
+      stroke:'#1c1917', strokeWidth:0.6, strokeDashArray:[4,4]
+    }));
+    const grp = mkGroup(parts, 'Cement Fence');
+    makeStretchable(grp, 'x', 40);
+    return { group: grp, labels: [
+      { text:'CEMENT FENCE', x: 0, y: -22, kind:'equipment' },
+      { text:`${(W/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
+    ]};
+  },
+
+  cement_fence_post(){
+    const W = 20, H = 20;
+    const parts = [
+      mkRect(0, 0, W, H, { fill:'#78716c', stroke:'#1c1917', strokeWidth:2 }),
+      mkCircle(W/2, H/2, 4, { fill:'#1c1917', stroke:'none' }),
+    ];
+    return { group: mkGroup(parts, 'Cement Post'), labels: [] };
+  },
+
   cabin(){
     const W = 4*M2PX, H = 3*M2PX;
     const parts = [];
@@ -728,7 +945,8 @@ const STENCILS = {
     const dw = 22, dx = W - dw - 4, dy = H/2 - 11;
     parts.push(mkRect(dx, dy, dw, 22, { fill:'#94a3b8', stroke:'#0f172a' }));
     parts.push(new fabric.Path(`M ${dx} ${dy} A 22 22 0 0 0 ${dx + 22} ${dy}`,
-      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[2,2], selectable:false }));
+      { stroke:'#0891b2', strokeWidth:0.8, fill:'', strokeDashArray:[2,2],
+        selectable:false, strokeUniform: true }));
     parts.push(mkRect(6, 6, 24, 12, { fill:'#dbeafe', stroke:'#1e3a8a' }));
     parts.push(mkText('AC', 14, 9, 7, { fill:'#1e3a8a', selectable:false }));
     parts.push(mkRect(W-24, H-14, 18, 8, { fill:'#fef3c7', stroke:'#a16207' }));
@@ -930,7 +1148,6 @@ const STENCILS = {
     ]};
   },
 
-  /* ★ NEW: CEMENT BASEPADS */
   basepad(){
     const W = 3*M2PX, H = 3*M2PX;
     const parts = [];
@@ -939,7 +1156,6 @@ const STENCILS = {
       fill:'rgba(203,213,225,0.65)',
       stroke:'#334155', strokeWidth: 2
     }));
-    // Corner markers
     const c = 10;
     parts.push(mkLine(0, 0, c, 0, { stroke:'#0f172a', strokeWidth:2.5 }));
     parts.push(mkLine(0, 0, 0, c, { stroke:'#0f172a', strokeWidth:2.5 }));
@@ -949,7 +1165,9 @@ const STENCILS = {
     parts.push(mkLine(0, H, 0, H-c, { stroke:'#0f172a', strokeWidth:2.5 }));
     parts.push(mkLine(W, H, W-c, H, { stroke:'#0f172a', strokeWidth:2.5 }));
     parts.push(mkLine(W, H, W, H-c, { stroke:'#0f172a', strokeWidth:2.5 }));
-    return { group: mkGroup(parts, 'Cement Basepad'), labels: [
+    const grp = mkGroup(parts, 'Cement Basepad');
+    makeStretchable(grp, 'x', 40);
+    return { group: grp, labels: [
       { text:'CEMENT BASEPAD', x: 0, y: -20, kind:'equipment' },
       { text:`${(W/M2PX).toFixed(1)} × ${(H/M2PX).toFixed(1)} m`,
         x: 0, y: H + 6, kind:'dim' }
@@ -965,7 +1183,9 @@ const STENCILS = {
     }));
     parts.push(mkText('GEN PAD', W/2 - 30, H/2 - 4, 9,
       { fontWeight:'700', fill:'#78350f', selectable:false }));
-    return { group: mkGroup(parts, 'Gen Basepad'), labels: [
+    const grp = mkGroup(parts, 'Gen Basepad');
+    makeStretchable(grp, 'x', 40);
+    return { group: grp, labels: [
       { text:'GENERATOR BASEPAD', x: 0, y: -20, kind:'equipment' },
       { text:`${(W/M2PX).toFixed(1)}×${(H/M2PX).toFixed(1)}m`,
         x: 0, y: H + 6, kind:'dim' }
@@ -981,7 +1201,9 @@ const STENCILS = {
     }));
     parts.push(mkText('TX PAD', W/2 - 24, H/2 - 4, 9,
       { fontWeight:'700', fill:'#78350f', selectable:false }));
-    return { group: mkGroup(parts, 'TX Basepad'), labels: [
+    const grp = mkGroup(parts, 'TX Basepad');
+    makeStretchable(grp, 'x', 30);
+    return { group: grp, labels: [
       { text:'TRANSFORMER BASEPAD', x: 0, y: -20, kind:'equipment' }
     ]};
   },
@@ -993,7 +1215,9 @@ const STENCILS = {
       fill:'rgba(224,242,254,0.7)',
       stroke:'#0369a1', strokeWidth: 1.5
     }));
-    return { group: mkGroup(parts, 'AC Basepad'), labels: [
+    const grp = mkGroup(parts, 'AC Basepad');
+    makeStretchable(grp, 'x', 20);
+    return { group: grp, labels: [
       { text:'AC BASEPAD', x: 0, y: -16, kind:'equipment' }
     ]};
   },
@@ -1028,7 +1252,9 @@ const STENCILS = {
     for (let x = 4; x < W; x += 6){
       parts.push(mkLine(x, 1, x, H-1, { stroke:'#475569', strokeWidth:0.8 }));
     }
-    return { group: mkGroup(parts, 'Cable Tray'), labels: [
+    const grp = mkGroup(parts, 'Cable Tray');
+    makeStretchable(grp, 'x', 20);
+    return { group: grp, labels: [
       { text:'CABLE TRAY', x: 0, y: -14, kind:'equipment' },
       { text:`${(W/M2PX).toFixed(1)}m`, x: 0, y: H + 6, kind:'dim' }
     ]};
@@ -1120,7 +1346,9 @@ const STENCILS = {
       parts.push(mkLine(x, 0, x, H, { stroke:'#44403c', strokeWidth:0.5 }));
     }
     parts.push(mkLine(0, H/2, W, H/2, { stroke:'#44403c', strokeWidth:0.5 }));
-    return { group: mkGroup(parts, 'Wall'), labels: [] };
+    const grp = mkGroup(parts, 'Wall');
+    makeStretchable(grp, 'x', 30);
+    return { group: grp, labels: [] };
   },
 };
 
@@ -1151,7 +1379,7 @@ const LABEL_STENCILS = {
 };
 
 /* =====================================================================
-   7. CANVAS INIT
+   8. CANVAS INIT
    ===================================================================== */
 function initCanvas(){
   canvas = new fabric.Canvas('c', {
@@ -1170,7 +1398,7 @@ function initCanvas(){
 
   canvas.on('object:added', opt => {
     if (opt.target && !opt.target.isBackground){
-      opt.target.set({ perPixelTargetFind:true, padding:2 });
+      opt.target.set({ perPixelTargetFind:true, padding:2, strokeUniform: true });
       if (!opt.target._uid) opt.target._uid = uid();
     }
     markDirty(); refreshPanels();
@@ -1181,7 +1409,6 @@ function initCanvas(){
   canvas.on('selection:updated', () => { refreshPanels(); syncSelectionPanel(); });
   canvas.on('selection:cleared', () => { refreshPanels(); syncSelectionPanel(); });
 
-  // ★ Live refresh of the panel while dragging/resizing
   canvas.on('object:moving',  () => syncSelectionPanelLight());
   canvas.on('object:scaling', () => syncSelectionPanelLight());
   canvas.on('object:rotating',() => syncSelectionPanelLight());
@@ -1194,10 +1421,11 @@ function initCanvas(){
   });
 
   drawGridOverlay();
+  installDynamicStretch();  // ★ enable dynamic stretch
 }
 
 /* =====================================================================
-   8. GRID
+   9. GRID
    ===================================================================== */
 function drawGridOverlay(){
   const showGrid = $('show-grid').checked;
@@ -1220,7 +1448,7 @@ function drawGridOverlay(){
 }
 
 /* =====================================================================
-   9. SNAP
+   10. SNAP
    ===================================================================== */
 function snapPt(p){
   let x = p.x, y = p.y;
@@ -1251,7 +1479,7 @@ function snapPt(p){
 }
 
 /* =====================================================================
-   10. POINTER HANDLERS
+   11. POINTER HANDLERS
    ===================================================================== */
 function onDown(opt){
   if (spaceDown || currentTool === 'pan'){
@@ -1279,10 +1507,11 @@ function onDown(opt){
       orig.clone(c => {
         c.set({ left:(orig.left||0)+20, top:(orig.top||0)+20,
                 evented:true, selectable:true,
-                perPixelTargetFind:true, padding:2, _uid: uid() });
+                perPixelTargetFind:true, padding:2, strokeUniform:true,
+                _uid: uid() });
         canvas.add(c); canvas.setActiveObject(c); canvas.renderAll();
         toast('Duplicated');
-      });
+      }, CUSTOM_PROPS);
     }
     return;
   }
@@ -1306,7 +1535,7 @@ function onDown(opt){
       polyPreview = new fabric.Polyline(polyPoints, {
         fill:'', stroke:sColor, strokeWidth:sWidth,
         strokeLineCap:'round', strokeLineJoin:'round',
-        selectable:false, evented:false,
+        selectable:false, evented:false, strokeUniform: true,
       });
       canvas.add(polyPreview);
     } else {
@@ -1324,13 +1553,14 @@ function onDown(opt){
     activeShape = new fabric.Path(`M ${p.x} ${p.y}`, {
       stroke:sColor, strokeWidth:sWidth, fill:'',
       strokeLineCap:'round', strokeLineJoin:'round',
-      selectable:false, evented:false,
+      selectable:false, evented:false, strokeUniform: true,
     });
     canvas.add(activeShape);
   } else if (currentTool === 'line' || currentTool === 'dim-h' || currentTool === 'dim-v'){
     activeShape = new fabric.Line([p.x, p.y, p.x, p.y], {
       stroke: currentTool.startsWith('dim') ? '#0891b2' : sColor,
       strokeWidth: sWidth, selectable:false, evented:false,
+      strokeUniform: true,
     });
     activeShape._isDimension = currentTool.startsWith('dim');
     canvas.add(activeShape);
@@ -1338,7 +1568,7 @@ function onDown(opt){
     activeShape = new fabric.Rect({
       left:p.x, top:p.y, width:1, height:1,
       fill:fColor, stroke:sColor, strokeWidth:sWidth,
-      selectable:false, evented:false,
+      selectable:false, evented:false, strokeUniform: true,
     });
     canvas.add(activeShape);
   } else if (currentTool === 'circle'){
@@ -1346,6 +1576,7 @@ function onDown(opt){
       left:p.x, top:p.y, radius:1,
       fill:fColor, stroke:sColor, strokeWidth:sWidth,
       selectable:false, evented:false, originX:'left', originY:'top',
+      strokeUniform: true,
     });
     canvas.add(activeShape);
   } else if (currentTool === 'text'){
@@ -1463,7 +1694,8 @@ function onUp(){
     }
   } catch(_) {}
 
-  activeShape.set({ selectable:true, evented:true, perPixelTargetFind:true, padding:2 });
+  activeShape.set({ selectable:true, evented:true, perPixelTargetFind:true,
+                    padding:2, strokeUniform:true });
   activeShape._uid = uid();
   canvas.setActiveObject(activeShape);
 
@@ -1496,7 +1728,7 @@ function addDimensionLabel(line){
 }
 
 /* =====================================================================
-   11. STENCIL PLACEMENT
+   12. STENCIL PLACEMENT
    ===================================================================== */
 function placeStencil(id, x, y){
   const fn = STENCILS[id];
@@ -1505,7 +1737,7 @@ function placeStencil(id, x, y){
     const { group, labels } = fn();
     group.set({
       left:x, top:y, originX:'center', originY:'center',
-      perPixelTargetFind:true, padding:2,
+      perPixelTargetFind:true, padding:2, strokeUniform: true,
     });
     canvas.add(group);
 
@@ -1541,14 +1773,14 @@ function placeLabel(id, x, y){
   canvas.add(lbl);
   canvas.setActiveObject(lbl);
   canvas.renderAll();
-  toast('Label placed — drag, double-click to edit');
+  toast('Label placed');
   pendingLabelId = null;
   setTool('select');
   $('stencil-panel').classList.remove('open');
 }
 
 /* =====================================================================
-   12. TOOLS
+   13. TOOLS
    ===================================================================== */
 function setTool(tool){
   if (currentTool === 'polyline' && polyPreview) finalizePolyline();
@@ -1571,7 +1803,8 @@ function finalizePolyline(){
     polyPreview = null; polyPoints = [];
     return;
   }
-  polyPreview.set({ selectable:true, evented:true, perPixelTargetFind:true, padding:2 });
+  polyPreview.set({ selectable:true, evented:true, perPixelTargetFind:true,
+                    padding:2, strokeUniform: true });
   polyPreview._uid = uid();
   canvas.setActiveObject(polyPreview);
   canvas.requestRenderAll();
@@ -1594,7 +1827,7 @@ document.querySelectorAll('.stencil').forEach(el => {
 });
 
 /* =====================================================================
-   13. HELPERS
+   14. HELPERS
    ===================================================================== */
 function hexWithAlpha(hex, alpha){
   if (!hex || hex[0] !== '#') return hex;
@@ -1604,8 +1837,7 @@ function hexWithAlpha(hex, alpha){
   return `rgba(${r},${g},${b},${alpha})`;
 }
 function rgbaToHex(rgba){
-  if (!rgba) return '#000000';
-  if (typeof rgba !== 'string') return '#000000';
+  if (!rgba || typeof rgba !== 'string') return '#000000';
   if (rgba[0] === '#'){
     let h = rgba.slice(1);
     if (h.length === 3) h = h.split('').map(c=>c+c).join('');
@@ -1623,18 +1855,14 @@ function hexAlphaOf(rgba){
 }
 
 /* =====================================================================
-   14. ★ LIVE SELECTION PANEL (FIXED)
+   15. SELECTION PANEL
    ===================================================================== */
-let suppressPanelSync = false;   // ← prevents feedback loop when panel drives canvas
-
 function showSelField(id, on){
   const el = $(id);
   if (!el) return;
   el.classList.toggle('on', !!on);
 }
-
 function syncSelectionPanelLight(){
-  // Fast refresh of X/Y/W/H/angle only while dragging
   const o = canvas.getActiveObject();
   if (!o) return;
   if ($('sel-x') !== document.activeElement)
@@ -1651,7 +1879,6 @@ function syncSelectionPanelLight(){
     $('sel-angle-val').textContent = ang + '°';
   }
 }
-
 function syncSelectionPanel(){
   if (suppressPanelSync) return;
   const objs = canvas.getActiveObjects();
@@ -1692,7 +1919,6 @@ function syncSelectionPanel(){
   showSelField('row-geom',    true);
   showSelField('row-actions', true);
 
-  // ★ Populate — only touch elements that are NOT currently focused
   const safeSet = (id, v) => { if ($(id) !== document.activeElement) $(id).value = v; };
 
   safeSet('sel-stroke-color', rgbaToHex(o.stroke));
@@ -1729,7 +1955,6 @@ function syncSelectionPanel(){
   safeSet('sel-h', Math.round((o.height || 0) * (o.scaleY || 1)));
   $('sel-lock-ratio').classList.toggle('active', lockRatio);
 }
-
 function applyToSelection(fn){
   const objs = canvas.getActiveObjects();
   if (!objs.length) return;
@@ -1740,11 +1965,9 @@ function applyToSelection(fn){
   markDirty();
 }
 
-/* ---- Live bindings (FIXED) ---- */
 $('sel-stroke-color').addEventListener('input', e => {
   const v = e.target.value;
   applyToSelection(o => o.set('stroke', v));
-  syncSelectionPanelLight();
 });
 $('sel-stroke-width').addEventListener('input', e => {
   const v = parseInt(e.target.value);
@@ -1759,7 +1982,6 @@ $('sel-fill-enabled').addEventListener('change', e => {
     if (o.type === 'i-text' || o.type === 'text' || o.type === 'textbox') return;
     o.set('fill', on ? hexWithAlpha(hex, a) : 'transparent');
   });
-  syncSelectionPanelLight();
 });
 $('sel-fill-color').addEventListener('input', e => {
   const hex = e.target.value;
@@ -1847,6 +2069,9 @@ $('sel-w').addEventListener('change', e => {
     else o.set('scaleX', newScaleX);
     o.setCoords();
   });
+  // Bake immediately so the visual matches
+  const o = canvas.getActiveObject();
+  if (o && o._stretchable) bakeScale(o);
 });
 $('sel-h').addEventListener('change', e => {
   const v = parseFloat(e.target.value);
@@ -1857,13 +2082,26 @@ $('sel-h').addEventListener('change', e => {
     else o.set('scaleY', newScaleY);
     o.setCoords();
   });
+  const o = canvas.getActiveObject();
+  if (o && o._stretchable) bakeScale(o);
 });
 $('sel-lock-ratio').onclick = () => {
   lockRatio = !lockRatio;
   $('sel-lock-ratio').classList.toggle('active', lockRatio);
 };
 $('sel-reset-size').onclick = () => {
-  applyToSelection(o => { o.set({ scaleX:1, scaleY:1 }); o.setCoords(); });
+  applyToSelection(o => {
+    if (o._originalWidth && o._originalHeight){
+      o.set({
+        width: o._originalWidth,
+        height: o._originalHeight,
+        scaleX: 1, scaleY: 1,
+      });
+    } else {
+      o.set({ scaleX:1, scaleY:1 });
+    }
+    o.setCoords();
+  });
   syncSelectionPanel();
   toast('Size reset');
 };
@@ -1881,7 +2119,7 @@ $('sel-dup').onclick = duplicateSel;
 $('sel-del').onclick = deleteSel;
 
 /* =====================================================================
-   15. ★ COPY / PASTE
+   16. COPY / PASTE
    ===================================================================== */
 function copySelection(){
   const objs = canvas.getActiveObjects();
@@ -1894,13 +2132,13 @@ function copySelection(){
       clipboard.push(c);
       if (--pending === 0){
         clipboardOffset = 0;
+        updateHud();
         toast(`Copied ${clipboard.length} object${clipboard.length===1?'':'s'}`, 'ok');
       }
     }, CUSTOM_PROPS);
   });
   return true;
 }
-
 function pasteClipboard(){
   if (!clipboard.length){ toast('Clipboard empty', 'warn'); return; }
   clipboardOffset += 20;
@@ -1915,6 +2153,7 @@ function pasteClipboard(){
         padding: 2,
         evented: true,
         selectable: true,
+        strokeUniform: true,
         _uid: uid(),
       });
       c.setCoords();
@@ -1922,48 +2161,39 @@ function pasteClipboard(){
       pasted.push(c);
       if (--pending === 0){
         canvas.discardActiveObject();
-        if (pasted.length === 1){
-          canvas.setActiveObject(pasted[0]);
-        } else {
-          const sel = new fabric.ActiveSelection(pasted, { canvas });
-          canvas.setActiveObject(sel);
-        }
+        if (pasted.length === 1) canvas.setActiveObject(pasted[0]);
+        else canvas.setActiveObject(new fabric.ActiveSelection(pasted, { canvas }));
         canvas.requestRenderAll();
-        refreshPanels();
-        syncSelectionPanel();
+        refreshPanels(); syncSelectionPanel();
         toast(`Pasted ${pasted.length} object${pasted.length===1?'':'s'}`, 'ok');
       }
     }, CUSTOM_PROPS);
   });
 }
-
 function cutSelection(){
-  if (!copySelection()){
-    return;
-  }
+  if (!copySelection()) return;
   setTimeout(() => {
     const objs = canvas.getActiveObjects();
     objs.forEach(o => canvas.remove(o));
     canvas.discardActiveObject();
     canvas.renderAll();
-    refreshPanels();
-    syncSelectionPanel();
+    refreshPanels(); syncSelectionPanel();
     toast('Cut', 'ok');
   }, 30);
 }
 
 /* =====================================================================
-   16. HISTORY
+   17. HISTORY
    ===================================================================== */
 const MAX_HISTORY = 80, MAX_BYTES = 4_000_000;
 function serialize(){
   try {
     return JSON.stringify({
-      v: 4,
+      v: 5,
       canvas: { w: canvas.getWidth(), h: canvas.getHeight() },
       fabric: canvas.toJSON(CUSTOM_PROPS),
     });
-  } catch(e){ return '{"v":4,"fabric":{"objects":[]}}'; }
+  } catch(e){ return '{"v":5,"fabric":{"objects":[]}}'; }
 }
 let saveTimer;
 function markDirty(){
@@ -2002,7 +2232,7 @@ function applySnapshot(j){
       if (bg) canvas.setBackgroundImage(bg, canvas.renderAll.bind(canvas));
       canvas.forEachObject(o => {
         o.evented = true;
-        o.set({ perPixelTargetFind:true, padding:2 });
+        o.set({ perPixelTargetFind:true, padding:2, strokeUniform: true });
         if (!o._uid) o._uid = uid();
       });
       canvas.renderAll();
@@ -2013,7 +2243,7 @@ function applySnapshot(j){
 }
 
 /* =====================================================================
-   17. ACTIONS
+   18. ACTIONS
    ===================================================================== */
 function deleteSel(){
   const objs = canvas.getActiveObjects();
@@ -2030,7 +2260,8 @@ function duplicateSel(){
   objs.forEach(o => {
     o.clone(c => {
       c.set({ left:(o.left||0)+20, top:(o.top||0)+20,
-              perPixelTargetFind:true, padding:2, _uid: uid() });
+              perPixelTargetFind:true, padding:2, strokeUniform:true,
+              _uid: uid() });
       canvas.add(c);
       newOnes.push(c);
       if (--pending === 0){
@@ -2038,8 +2269,7 @@ function duplicateSel(){
         if (newOnes.length === 1) canvas.setActiveObject(newOnes[0]);
         else canvas.setActiveObject(new fabric.ActiveSelection(newOnes, { canvas }));
         canvas.renderAll();
-        refreshPanels();
-        syncSelectionPanel();
+        refreshPanels(); syncSelectionPanel();
       }
     }, CUSTOM_PROPS);
   });
@@ -2069,7 +2299,7 @@ function clearAll(){
 }
 
 /* =====================================================================
-   18. IMAGE
+   19. IMAGE
    ===================================================================== */
 const MAX_IMAGE_DIM = 4096;
 function downscaleIfNeeded(dataUrl){
@@ -2124,20 +2354,14 @@ $('tb-open').onclick = () => {
   };
   inp.click();
 };
-$('tb-paste').onclick = () => {
-  // Image paste — triggers via paste event
-  document.body.focus();
-  toast('Press Ctrl+V to paste image from clipboard');
-};
+$('tb-paste').onclick = () => { document.body.focus(); toast('Press Ctrl+V'); };
 $('tb-copy').onclick = copySelection;
 $('tb-paste-obj').onclick = pasteClipboard;
 $('tb-cut').onclick = cutSelection;
 
-/* Image paste handler */
 document.addEventListener('paste', e => {
   const now = Date.now();
   const items = (e.clipboardData || {}).items || [];
-  // Image branch
   for (const it of items){
     if (it.kind === 'file' && it.type.startsWith('image/')){
       if (now - pasteLock < 500) return;
@@ -2145,18 +2369,10 @@ document.addEventListener('paste', e => {
       const r = new FileReader();
       r.onload = ev => loadImage(ev.target.result, 'pasted');
       r.readAsDataURL(it.getAsFile());
-      e.preventDefault();
-      return;
+      e.preventDefault(); return;
     }
   }
-  // Object paste branch (no image → paste internal clipboard)
-  const editing = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
-                  e.target.isContentEditable;
-  if (!editing && clipboard.length){
-    // Handled by keyboard shortcut too — but this ensures Ctrl+V works reliably
-  }
 });
-
 document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => {
   e.preventDefault();
@@ -2168,7 +2384,7 @@ document.addEventListener('drop', e => {
 });
 
 /* =====================================================================
-   19. VIEW
+   20. VIEW
    ===================================================================== */
 function applyView(){
   $('canvas-holder').style.transform =
@@ -2217,7 +2433,7 @@ window.addEventListener('mousemove', e => {
 });
 
 /* =====================================================================
-   20. PANELS
+   21. PANELS
    ===================================================================== */
 function refreshPanels(){ updateHud(); updateStorageInfo(); }
 function updateHud(){
@@ -2237,7 +2453,7 @@ function updateStorageInfo(){
 }
 
 /* =====================================================================
-   21. EXPORT
+   22. EXPORT
    ===================================================================== */
 function download(blob, name){
   const a = document.createElement('a');
@@ -2268,7 +2484,7 @@ function exportPNG(scale){
 function exportJSON(){
   try {
     const data = {
-      version: 4, kind: 'telecom_site_layout',
+      version: 5, kind: 'telecom_site_layout',
       exported: new Date().toISOString(),
       canvas: { width: canvas.getWidth(), height: canvas.getHeight() },
       scale: { m_per_px: parseFloat($('scale-m').value || 0.05),
@@ -2306,7 +2522,7 @@ function loadJSONDialog(){
           if (bg) canvas.setBackgroundImage(bg, canvas.renderAll.bind(canvas));
           canvas.forEachObject(o => {
             o.evented = true;
-            o.set({ perPixelTargetFind:true, padding:2 });
+            o.set({ perPixelTargetFind:true, padding:2, strokeUniform: true });
             if (!o._uid) o._uid = uid();
           });
           canvas.renderAll(); refreshPanels(); syncSelectionPanel();
@@ -2335,12 +2551,12 @@ function printPlan(){
 }
 
 /* =====================================================================
-   22. SAVE / RESTORE
+   23. SAVE / RESTORE
    ===================================================================== */
 function saveLocal(){
   if (!Storage.available()) return;
   Storage.set(Storage.KEY, serialize());
-  Storage.set(Storage.KEY_CTR, String(cableCounter));
+  Storage.set(Storage.KEY_CTR, '0');
   updateStorageInfo();
 }
 function loadLocal(){
@@ -2355,7 +2571,7 @@ function loadLocal(){
     canvas.loadFromJSON(fab, () => {
       canvas.forEachObject(o => {
         o.evented = true;
-        o.set({ perPixelTargetFind:true, padding:2 });
+        o.set({ perPixelTargetFind:true, padding:2, strokeUniform: true });
         if (!o._uid) o._uid = uid();
       });
       canvas.renderAll(); refreshPanels(); syncSelectionPanel();
@@ -2367,20 +2583,17 @@ function loadLocal(){
 }
 
 /* =====================================================================
-   23. KEYBOARD
+   24. KEYBOARD
    ===================================================================== */
 document.addEventListener('keydown', e => {
   const editing = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
                   e.target.isContentEditable;
-
   if ((e.ctrlKey||e.metaKey) && e.shiftKey && e.key.toLowerCase()==='d'){
     e.preventDefault(); runDiagnostics(); return;
   }
   if (editing) return;
-
   if (e.code === 'Space'){ spaceDown = true;
     document.body.style.cursor = 'grab'; e.preventDefault(); }
-
   const k = e.key.toLowerCase();
   if (e.ctrlKey || e.metaKey){
     if (k === 'c'){ e.preventDefault(); copySelection(); }
@@ -2431,19 +2644,19 @@ window.addEventListener('blur', () => {
 });
 
 /* =====================================================================
-   24. DIAGNOSTICS
+   25. DIAGNOSTICS
    ===================================================================== */
 function runDiagnostics(){
   const lines = [
     'Telecom Site Layout Studio — Diagnostics',
     'Time: ' + new Date().toISOString(),
     'Fabric.js: ' + (window.fabric ? '✓ '+fabric.version : '✗'),
+    'strokeUniform default: ' + fabric.Object.prototype.strokeUniform,
     'localStorage: ' + (Storage.available() ? '✓' : '✗'),
     'Storage bytes: ' + Storage.bytes(),
     'Canvas: ' + canvas.getWidth()+'×'+canvas.getHeight(),
     'Objects: ' + canvas.getObjects().length,
-    'Labels: ' + canvas.getObjects().filter(o=>o._isStencilLabel).length,
-    'Stencils: ' + Object.keys(STENCILS).length,
+    'Stretchable: ' + canvas.getObjects().filter(o=>o._stretchable).length,
     'Clipboard: ' + clipboard.length,
     'Undo: ' + undoStack.length + ' / Redo: ' + redoStack.length,
     'UA: ' + navigator.userAgent,
@@ -2457,7 +2670,7 @@ function runDiagnostics(){
 }
 
 /* =====================================================================
-   25. TOOLBAR BINDINGS
+   26. TOOLBAR BINDINGS
    ===================================================================== */
 $('tb-new').onclick = () => {
   if (!confirm('New site plan? Unsaved work will be lost.')) return;
@@ -2521,7 +2734,7 @@ function buildPalette(){
 }
 
 /* =====================================================================
-   26. HEIGHT SYNC
+   27. HEIGHT SYNC
    ===================================================================== */
 function syncFrameHeight(){
   try {
@@ -2537,7 +2750,7 @@ window.addEventListener('resize', syncFrameHeight);
 setInterval(syncFrameHeight, 3000);
 
 /* =====================================================================
-   27. BOOT
+   28. BOOT
    ===================================================================== */
 (async function boot(){
   try {
@@ -2557,7 +2770,7 @@ setInterval(syncFrameHeight, 3000);
       loadLocal();
       Boot.ready();
       syncSelectionPanel();
-      toast('Ready — Ctrl+C / Ctrl+V to copy objects', 'ok');
+      toast('Ready — stretch fences & pads without thickening', 'ok');
     }, 200);
   } catch(e){
     console.error('[boot]', e);
