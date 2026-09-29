@@ -54,7 +54,7 @@
   .tbtn.sep{margin-top:6px;position:relative}
   .tbtn.sep::before{content:'';position:absolute;top:-3px;left:6px;right:6px;
     height:1px;background:#1f2a44}
-  #stencil-panel{position:absolute;top:52px;left:52px;width:280px;
+  #stencil-panel{position:absolute;top:52px;left:52px;width:300px;
     background:#0f1626;border:1px solid #1f2a44;border-radius:0 0 10px 0;
     z-index:25;max-height:calc(100vh - 60px);overflow-y:auto;
     padding:10px;display:none}
@@ -64,6 +64,9 @@
   #stencil-panel h4{margin:10px 0 6px;font-size:.66rem;text-transform:uppercase;
     letter-spacing:.08em;color:#7c8db5}
   #stencil-panel h4:first-child{margin-top:2px}
+  #stencil-search{width:100%;padding:6px 8px;border-radius:6px;
+    border:1px solid #2a3a5c;background:#0b1220;color:#e2e8f0;font-size:.76rem;
+    margin-bottom:8px;font-family:inherit}
   .stencil-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
   .stencil{background:#131a2b;border:1px solid #1f2a44;border-radius:8px;
     padding:10px 6px;cursor:pointer;transition:.12s;text-align:center;
@@ -71,20 +74,26 @@
     display:flex;flex-direction:column;align-items:center;gap:4px}
   .stencil:hover{background:#1c2640;border-color:#3b82f6;
     transform:translateY(-1px);box-shadow:0 4px 10px rgba(0,0,0,.3)}
-  #props{width:290px;background:#0f1626;border-left:1px solid #1f2a44;
+  .stencil.hidden{display:none}
+  #props{width:300px;background:#0f1626;border-left:1px solid #1f2a44;
     padding:60px 12px 20px;overflow-y:auto;flex-shrink:0;z-index:15}
   #props::-webkit-scrollbar{width:6px}
   #props::-webkit-scrollbar-thumb{background:#27344f;border-radius:3px}
   #props h3{margin:14px 0 6px;font-size:.68rem;text-transform:uppercase;
-    letter-spacing:.08em;color:#7c8db5;font-weight:700}
+    letter-spacing:.08em;color:#7c8db5;font-weight:700;cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center}
   #props h3:first-child{margin-top:0}
+  #props h3 .chev{font-size:.6rem;color:#66748f;transition:.15s}
+  #props h3.collapsed .chev{transform:rotate(-90deg)}
   .psection{background:#131a2b;border:1px solid #1f2a44;border-radius:10px;
     padding:10px;margin-bottom:8px}
+  .psection.collapsed{display:none}
   .pbtn{display:flex;align-items:center;gap:6px;width:100%;padding:7px 10px;
     margin:3px 0;background:#1c2640;color:#e2e8f0;border:1px solid #2a3a5c;
     border-radius:7px;font-size:.76rem;cursor:pointer;text-align:left;
     transition:.12s;font-family:inherit}
   .pbtn:hover{background:#243256;border-color:#3b4d75}
+  .pbtn.active{background:#2563eb;border-color:#3b82f6;color:#fff}
   .pbtn.danger:hover{background:#7f1d1d;border-color:#dc2626;color:#fecaca}
   .prow{display:flex;gap:5px}
   .prow .pbtn{flex:1;justify-content:center;text-align:center}
@@ -102,18 +111,21 @@
   label span.val{color:#a5b4fc;font-weight:600}
   .swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-top:4px}
   .swatch{aspect-ratio:1;border-radius:4px;cursor:pointer;
-    border:2px solid transparent;transition:.1s}
+    border:2px solid transparent;transition:.1s;position:relative}
   .swatch:hover{transform:scale(1.08)}
   .swatch.sel{border-color:#fff;box-shadow:0 0 0 2px #6366f1}
+  .swatch .lbl{position:absolute;bottom:-16px;left:0;right:0;font-size:.55rem;
+    color:#66748f;text-align:center;display:none;white-space:nowrap}
+  .swatch:hover .lbl{display:block}
   #stage{flex:1;position:relative;overflow:hidden;
     background:repeating-conic-gradient(#0a1020 0 25%,#0b1220 0 50%) 50%/24px 24px;
     padding-top:44px}
   #canvas-holder{position:absolute;top:44px;left:0;transform-origin:0 0;
     will-change:transform}
-  #canvastools{position:absolute;bottom:14px;right:310px;display:flex;gap:6px;
+  #canvastools{position:absolute;bottom:14px;right:320px;display:flex;gap:6px;
     background:rgba(19,26,43,.92);backdrop-filter:blur(12px);
     border:1px solid #2a3a5c;padding:5px;border-radius:10px;z-index:20;
-    box-shadow:0 8px 24px rgba(0,0,0,.4)}
+    box-shadow:0 8px 24px rgba(0,0,0,.4);flex-wrap:wrap}
   #canvastools button{background:transparent;border:none;color:#8b9dc3;
     padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.76rem;
     font-family:inherit;display:flex;align-items:center;gap:4px;transition:.12s}
@@ -154,6 +166,34 @@
     z-index:40;box-shadow:0 6px 20px rgba(99,102,241,.45);display:none;
     align-items:center;gap:10px;pointer-events:none}
   #pending-banner.show{display:flex}
+  #layer-stack{position:absolute;top:56px;right:320px;width:230px;
+    background:rgba(19,26,43,.95);backdrop-filter:blur(12px);
+    border:1px solid #2a3a5c;border-radius:10px;padding:8px;
+    z-index:15;max-height:320px;overflow-y:auto;display:none}
+  #layer-stack.open{display:block}
+  #layer-stack h4{margin:0 0 6px;font-size:.65rem;text-transform:uppercase;
+    letter-spacing:.08em;color:#7c8db5;display:flex;justify-content:space-between}
+  #layer-stack .layer{display:flex;align-items:center;gap:6px;padding:4px 6px;
+    border-radius:5px;cursor:pointer;font-size:.72rem;color:#c8d3e8;transition:.1s}
+  #layer-stack .layer:hover{background:#1c2640}
+  #layer-stack .layer.sel{background:#2563eb;color:#fff}
+  #layer-stack .layer .ico{width:16px;text-align:center;font-size:.85rem}
+  #layer-stack .layer .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #layer-stack .layer .eye{font-size:.75rem;opacity:.5}
+  #layer-stack .layer:hover .eye{opacity:1}
+  #legend-box{position:absolute;bottom:14px;right:14px;background:rgba(19,26,43,.95);
+    backdrop-filter:blur(12px);border:1px solid #2a3a5c;border-radius:10px;
+    padding:10px 12px;font-size:.72rem;z-index:14;max-width:240px;
+    max-height:220px;overflow-y:auto;display:none}
+  #legend-box.open{display:block}
+  #legend-box h4{margin:0 0 8px;font-size:.65rem;text-transform:uppercase;
+    letter-spacing:.08em;color:#7c8db5}
+  #legend-box .item{display:flex;align-items:center;gap:8px;padding:3px 0;
+    border-bottom:1px solid #1a2338}
+  #legend-box .item:last-child{border-bottom:none}
+  #legend-box .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  #legend-box .nm{flex:1;color:#c8d3e8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #legend-box .cnt{color:#66748f;font-family:ui-monospace,monospace;font-size:.65rem}
 </style>
 </head>
 <body>
@@ -209,80 +249,95 @@
     <button class="tbtn" data-tool="dim-h"><span>↔️</span><span class="tip">H-Dimension</span></button>
     <button class="tbtn" data-tool="dim-v"><span>↕️</span><span class="tip">V-Dimension</span></button>
     <div class="sep"></div>
+    <button class="tbtn" data-tool="leader"><span>📌</span><span class="tip">Leader Line (Click tag, then target)</span></button>
     <button class="tbtn" data-tool="erase"><span>🧹</span><span class="tip">Eraser (E)</span></button>
+    <div class="sep"></div>
+    <button class="tbtn" id="tbtn-layers"><span>🗂️</span><span class="tip">Layer stack</span></button>
+    <button class="tbtn" id="tbtn-legend"><span>📊</span><span class="tip">Legend</span></button>
   </aside>
 
   <div id="stencil-panel">
-    <h4>🚪 Gate & Access</h4>
+    <input type="text" id="stencil-search" placeholder="🔍 Search stencils…">
+    <h4 data-cat>🚪 Gate & Access</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="gate_2door"><span>🚪</span>Gate (2-Door)</div>
-      <div class="stencil" data-stencil="fence"><span>🔲</span>Boundary Fence</div>
-      <div class="stencil" data-stencil="cement_fence"><span>🧱</span>Cement Fence</div>
-      <div class="stencil" data-stencil="cement_fence_post"><span>🏛️</span>Cement Post</div>
+      <div class="stencil" data-stencil="gate_2door" data-name="Gate 2-Door"><span>🚪</span>Gate (2-Door)</div>
+      <div class="stencil" data-stencil="fence" data-name="Boundary Fence"><span>🔲</span>Boundary Fence</div>
+      <div class="stencil" data-stencil="cement_fence" data-name="Cement Fence"><span>🧱</span>Cement Fence</div>
+      <div class="stencil" data-stencil="cement_fence_post" data-name="Cement Post"><span>🏛️</span>Cement Post</div>
     </div>
-    <h4>🏢 Cabin / Shelter</h4>
+    <h4 data-cat>🏢 Cabin / Shelter</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="cabin"><span>🏠</span>Shelter</div>
-      <div class="stencil" data-stencil="stairs"><span>🪜</span>Cement Stairs</div>
+      <div class="stencil" data-stencil="cabin" data-name="Shelter"><span>🏠</span>Shelter</div>
+      <div class="stencil" data-stencil="stairs" data-name="Cement Stairs"><span>🪜</span>Cement Stairs</div>
     </div>
-    <h4>🗄️ Cabinets</h4>
+    <h4 data-cat>🗄️ Cabinets</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="odc"><span>🗄️</span>ODC</div>
-      <div class="stencil" data-stencil="cab1"><span>🗃️</span>1-Bay</div>
-      <div class="stencil" data-stencil="cab2"><span>🗃️</span>2-Bay</div>
-      <div class="stencil" data-stencil="cab3"><span>🗃️</span>3-Bay</div>
+      <div class="stencil" data-stencil="odc" data-name="ODC"><span>🗄️</span>ODC</div>
+      <div class="stencil" data-stencil="cab1" data-name="1-Bay Cabinet"><span>🗃️</span>1-Bay</div>
+      <div class="stencil" data-stencil="cab2" data-name="2-Bay Cabinet"><span>🗃️</span>2-Bay</div>
+      <div class="stencil" data-stencil="cab3" data-name="3-Bay Cabinet"><span>🗃️</span>3-Bay</div>
     </div>
-    <h4>📡 Tower</h4>
+    <h4 data-cat>📡 Tower</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="tower4"><span>📡</span>4-Leg Tower</div>
-      <div class="stencil" data-stencil="tower3"><span>📡</span>3-Leg Tower</div>
-      <div class="stencil" data-stencil="towerfoot"><span>🔩</span>Footing</div>
-      <div class="stencil" data-stencil="guy"><span>⚓</span>Guy Anchor</div>
+      <div class="stencil" data-stencil="tower4" data-name="4-Leg Tower"><span>📡</span>4-Leg Tower</div>
+      <div class="stencil" data-stencil="tower3" data-name="3-Leg Tower"><span>📡</span>3-Leg Tower</div>
+      <div class="stencil" data-stencil="towerfoot" data-name="Tower Footing"><span>🔩</span>Footing</div>
+      <div class="stencil" data-stencil="guy" data-name="Guy Anchor"><span>⚓</span>Guy Anchor</div>
     </div>
-    <h4>⚡ Power</h4>
+    <h4 data-cat>⚡ Power</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="genset"><span>🔌</span>Generator+Pad</div>
-      <div class="stencil" data-stencil="fuel"><span>⛽</span>Fuel Tank</div>
-      <div class="stencil" data-stencil="transformer"><span>⚡</span>Transformer</div>
-      <div class="stencil" data-stencil="battery"><span>🔋</span>Battery Bank</div>
+      <div class="stencil" data-stencil="genset" data-name="Generator Pad"><span>🔌</span>Generator+Pad</div>
+      <div class="stencil" data-stencil="fuel" data-name="Fuel Tank"><span>⛽</span>Fuel Tank</div>
+      <div class="stencil" data-stencil="transformer" data-name="Transformer"><span>⚡</span>Transformer</div>
+      <div class="stencil" data-stencil="battery" data-name="Battery Bank"><span>🔋</span>Battery Bank</div>
     </div>
-    <h4>🛠️ Pads & Bases</h4>
+    <h4 data-cat>🛠️ Pads & Bases</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="basepad"><span>⬛</span>Cement Basepad</div>
-      <div class="stencil" data-stencil="basepad_gen"><span>🟧</span>Gen Basepad</div>
-      <div class="stencil" data-stencil="basepad_tx"><span>🟨</span>TX Basepad</div>
-      <div class="stencil" data-stencil="basepad_ac"><span>🟦</span>AC Basepad</div>
+      <div class="stencil" data-stencil="basepad" data-name="Cement Basepad"><span>⬛</span>Cement Basepad</div>
+      <div class="stencil" data-stencil="basepad_gen" data-name="Gen Basepad"><span>🟧</span>Gen Basepad</div>
+      <div class="stencil" data-stencil="basepad_tx" data-name="TX Basepad"><span>🟨</span>TX Basepad</div>
+      <div class="stencil" data-stencil="basepad_ac" data-name="AC Basepad"><span>🟦</span>AC Basepad</div>
     </div>
-    <h4>❄️ Cooling</h4>
+    <h4 data-cat>❄️ Cooling</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="aircon"><span>❄️</span>Air Conditioner</div>
+      <div class="stencil" data-stencil="aircon" data-name="Air Conditioner"><span>❄️</span>Air Conditioner</div>
     </div>
-    <h4>🛣️ Cable Infrastructure</h4>
+    <h4 data-cat>🛣️ Cable Infrastructure</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="cabletray"><span>🛤️</span>Cable Tray</div>
-      <div class="stencil" data-stencil="openrack"><span>🗂️</span>Open Rack</div>
-      <div class="stencil" data-stencil="hframe"><span>🪜</span>H-Frame</div>
+      <div class="stencil" data-stencil="cabletray" data-name="Cable Tray"><span>🛤️</span>Cable Tray</div>
+      <div class="stencil" data-stencil="openrack" data-name="Open Rack"><span>🗂️</span>Open Rack</div>
+      <div class="stencil" data-stencil="hframe" data-name="H-Frame"><span>🪜</span>H-Frame</div>
     </div>
-    <h4>🌱 Site Surface</h4>
+    <h4 data-cat>🌱 Site Surface</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="grass"><span>🌱</span>Grass Area</div>
-      <div class="stencil" data-stencil="cement"><span>⬜</span>Cement Slab</div>
-      <div class="stencil" data-stencil="gravel"><span>🪨</span>Gravel Pad</div>
-      <div class="stencil" data-stencil="wall"><span>🧱</span>Wall</div>
+      <div class="stencil" data-stencil="grass" data-name="Grass Area"><span>🌱</span>Grass Area</div>
+      <div class="stencil" data-stencil="cement" data-name="Cement Slab"><span>⬜</span>Cement Slab</div>
+      <div class="stencil" data-stencil="gravel" data-name="Gravel Pad"><span>🪨</span>Gravel Pad</div>
+      <div class="stencil" data-stencil="wall" data-name="Wall"><span>🧱</span>Wall</div>
     </div>
-    <h4>🔤 Labels</h4>
+    <h4 data-cat>🔤 Labels</h4>
     <div class="stencil-grid">
-      <div class="stencil" data-stencil="label_equipment"><span>🏷️</span>Equip Label</div>
-      <div class="stencil" data-stencil="label_cable"><span>🆔</span>Cable Label</div>
-      <div class="stencil" data-stencil="label_zone"><span>📛</span>Zone Label</div>
-      <div class="stencil" data-stencil="label_note"><span>📝</span>Note</div>
+      <div class="stencil" data-stencil="label_equipment" data-name="Equip Label"><span>🏷️</span>Equip Label</div>
+      <div class="stencil" data-stencil="label_cable" data-name="Cable Label"><span>🆔</span>Cable Label</div>
+      <div class="stencil" data-stencil="label_zone" data-name="Zone Label"><span>📛</span>Zone Label</div>
+      <div class="stencil" data-stencil="label_note" data-name="Note"><span>📝</span>Note</div>
     </div>
   </div>
 
+  <div id="layer-stack">
+    <h4>Layers <span id="layer-count" style="color:#66748f"></span></h4>
+    <div id="layer-list"></div>
+  </div>
+
+  <div id="legend-box">
+    <h4>📊 Legend</h4>
+    <div id="legend-items"></div>
+  </div>
+
   <aside id="props">
-    <h3>🎨 Draw Style</h3>
-    <div class="psection">
-      <label>Palette</label>
+    <h3 data-target="sec-draw">🎨 Draw Style <span class="chev">▼</span></h3>
+    <div class="psection" id="sec-draw">
+      <label>Palette (cable types)</label>
       <div class="swatches" id="palette"></div>
       <label>Stroke color</label>
       <input type="color" id="stroke-color" value="#334155">
@@ -295,8 +350,8 @@
       <input type="range" id="fill-opacity" min="0" max="100" value="40">
     </div>
 
-    <h3>🔤 Text Tool</h3>
-    <div class="psection">
+    <h3 data-target="sec-text">🔤 Text Tool <span class="chev">▼</span></h3>
+    <div class="psection" id="sec-text">
       <input type="text" id="text-value" value="LABEL" maxlength="80">
       <label>Font size <span class="val" id="fs-val">16px</span></label>
       <input type="range" id="font-size" min="8" max="72" value="16">
@@ -383,8 +438,8 @@
       </div>
     </div>
 
-    <h3>🧲 Snap</h3>
-    <div class="psection">
+    <h3 data-target="sec-snap">🧲 Snap <span class="chev">▼</span></h3>
+    <div class="psection" id="sec-snap">
       <label><span>Snap to grid</span>
         <input type="checkbox" id="snap-grid" style="width:auto"></label>
       <label>Grid size <span class="val" id="grid-val">20px</span></label>
@@ -397,8 +452,8 @@
         <input type="checkbox" id="ortho" style="width:auto"></label>
     </div>
 
-    <h3>📏 Scale & Units</h3>
-    <div class="psection">
+    <h3 data-target="sec-scale">📏 Scale & Units <span class="chev">▼</span></h3>
+    <div class="psection" id="sec-scale">
       <label>Drawing scale (1px = ? m)</label>
       <input type="number" id="scale-m" value="0.05" step="0.001" min="0.001">
       <label>Unit</label>
@@ -407,8 +462,8 @@
         <input type="checkbox" id="show-length" style="width:auto" checked></label>
     </div>
 
-    <h3>🛡️ Session</h3>
-    <div class="psection">
+    <h3 data-target="sec-session">🛡️ Session <span class="chev">▼</span></h3>
+    <div class="psection" id="sec-session">
       <div class="prow">
         <button class="pbtn" id="btn-backup">💼 <span>Backup</span></button>
         <button class="pbtn danger" id="btn-reset">🧨 <span>Reset</span></button>
@@ -419,8 +474,8 @@
       </div>
     </div>
 
-    <h3>❓ Help</h3>
-    <div class="psection" style="font-size:.68rem;color:#8b9dc3;line-height:1.7">
+    <h3 data-target="sec-help">❓ Help <span class="chev">▼</span></h3>
+    <div class="psection" id="sec-help" style="font-size:.68rem;color:#8b9dc3;line-height:1.7">
       <div><b style="color:#a5b4fc">Place stencil:</b> click it, then click canvas</div>
       <div><b style="color:#a5b4fc">Cancel placement:</b> Esc</div>
       <div><b style="color:#a5b4fc">Copy:</b> Ctrl+C / <b>Paste:</b> Ctrl+V</div>
@@ -428,6 +483,7 @@
       <div><b style="color:#a5b4fc">Zoom:</b> Ctrl + scroll</div>
       <div><b style="color:#a5b4fc">Pan:</b> Space + drag or H</div>
       <div><b style="color:#a5b4fc">Fit:</b> F</div>
+      <div><b style="color:#a5b4fc">Leader:</b> click tag then target</div>
     </div>
   </aside>
 
@@ -440,6 +496,7 @@
       <button id="ct-zoom-in">＋</button>
       <button id="ct-toggle-ortho" title="Orthogonal mode (Shift)">📐 Ortho</button>
       <button id="ct-toggle-dim" title="Auto-dimension labels" class="active">📏 Dims</button>
+      <button id="ct-toggle-legend" title="Legend">📊 Legend</button>
     </div>
     <div id="hud">
       <div class="chip" id="hud-xy">x: 0  y: 0</div>
@@ -517,7 +574,7 @@ function loadFabric(i = 0){
    2. STORAGE
    ===================================================================== */
 const Storage = {
-  KEY: 'telecom_site_v6',
+  KEY: 'telecom_site_v7',
   available(){
     try { const k='__t'+Math.random(); localStorage.setItem(k,'1');
           localStorage.removeItem(k); return true; } catch(_){ return false; }
@@ -545,6 +602,7 @@ let pendingStencil = null;
 let pendingLabelId = null;
 let drawing = false, startPt = null, activeShape = null, drawMoved = false;
 let polyPoints = [], polyPreview = null;
+let leaderStart = null, leaderPreview = null;
 let undoStack = [], redoStack = [];
 let view = { zoom: 1, x: 0, y: 0 };
 let spaceDown = false, panning = false, panStart = null;
@@ -561,18 +619,46 @@ let suppressPanelSync = false;
 const CW = 1600, CH = 1000;
 const M2PX = 20;
 
-const PALETTE = ['#334155','#64748b','#94a3b8','#cbd5e1','#f8fafc','#000000',
-                 '#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2','#2563eb',
-                 '#7c3aed','#db2777','#a16207','#0f766e','#475569','#a3a3a3'];
+/* Cable-type palette with labels */
+const PALETTE = [
+  { hex:'#ef4444', label:'Data / CAT6' },
+  { hex:'#f97316', label:'Fire Alarm' },
+  { hex:'#eab308', label:'Fiber' },
+  { hex:'#22c55e', label:'CCTV / IP' },
+  { hex:'#06b6d4', label:'Voice' },
+  { hex:'#3b82f6', label:'Power' },
+  { hex:'#8b5cf6', label:'Access' },
+  { hex:'#ec4899', label:'Wireless' },
+  { hex:'#dc2626', label:'Alarm' },
+  { hex:'#16a34a', label:'Ground' },
+  { hex:'#ca8a04', label:'Caution' },
+  { hex:'#334155', label:'Conduit' },
+  { hex:'#64748b', label:'Spare' },
+  { hex:'#94a3b8', label:'Fill' },
+  { hex:'#cbd5e1', label:'Pad' },
+  { hex:'#0f172a', label:'Outline' },
+  { hex:'#7c3aed', label:'Zone' },
+  { hex:'#db2777', label:'Emergency' },
+];
+const CABLE_COLORS = {
+  '#ef4444':'Data / CAT6','#f97316':'Fire Alarm','#eab308':'Fiber',
+  '#22c55e':'CCTV / IP','#06b6d4':'Voice','#3b82f6':'Power',
+  '#8b5cf6':'Access Control','#ec4899':'Wireless AP','#78716c':'Spare',
+  '#111827':'Conduit','#10b981':'Grounding','#f43f5e':'Emergency',
+  '#dc2626':'Alarm','#16a34a':'Ground','#ca8a04':'Caution',
+  '#334155':'Conduit','#64748b':'Spare','#7c3aed':'Zone',
+  '#db2777':'Emergency','#0f172a':'Outline','#94a3b8':'Fill','#cbd5e1':'Pad',
+};
 
 const CUSTOM_PROPS = ['selectable','evented','isBackground',
                       '_isCable','_isAnnotation','_isDimension',
                       '_stencilLabel','_isStencilLabel','_labelKind',
                       '_uid','_originalWidth','_originalHeight','_boundTo',
-                      '_stretchable','_stretchAxis','_minLength'];
+                      '_stretchable','_stretchAxis','_minLength',
+                      '_isLeader','_visible'];
 
 /* =====================================================================
-   4. FABRIC PROTOTYPE — sensible defaults for editing
+   4. FABRIC PROTOTYPE
    ===================================================================== */
 function tightenSelectionBoxes(){
   fabric.Object.prototype.set({
@@ -632,7 +718,8 @@ function mkText(s,x,y,size, opt){
   return new fabric.IText(s, Object.assign({
     left:x, top:y, fontSize:size||10,
     fill:'#0f172a', fontFamily:'system-ui, sans-serif',
-    fontWeight:'600', selectable:true, evented:true
+    fontWeight:'600', selectable:true, evented:true,
+    perPixelTargetFind:false
   }, opt||{}));
 }
 function mkGroup(objs, label, opts){
@@ -1323,14 +1410,15 @@ function initCanvas(){
       o.set({ strokeUniform: true });
       if (!o._uid) o._uid = uid();
       makeHitFriendly(o);
+      o._visible = o._visible !== false;
     }
-    markDirty(); refreshPanels();
+    markDirty(); refreshPanels(); refreshLayers(); refreshLegend();
   });
-  canvas.on('object:modified', () => { markDirty(); refreshPanels(); syncSelectionPanel(); });
-  canvas.on('object:removed',  () => { refreshPanels(); });
-  canvas.on('selection:created', () => { refreshPanels(); syncSelectionPanel(); });
-  canvas.on('selection:updated', () => { refreshPanels(); syncSelectionPanel(); });
-  canvas.on('selection:cleared', () => { refreshPanels(); syncSelectionPanel(); });
+  canvas.on('object:modified', () => { markDirty(); refreshPanels(); syncSelectionPanel(); refreshLayers(); });
+  canvas.on('object:removed',  () => { refreshPanels(); refreshLayers(); refreshLegend(); });
+  canvas.on('selection:created', () => { refreshPanels(); syncSelectionPanel(); refreshLayers(); });
+  canvas.on('selection:updated', () => { refreshPanels(); syncSelectionPanel(); refreshLayers(); });
+  canvas.on('selection:cleared', () => { refreshPanels(); syncSelectionPanel(); refreshLayers(); });
 
   canvas.on('object:moving',  () => syncSelectionPanelLight());
   canvas.on('object:scaling', () => syncSelectionPanelLight());
@@ -1411,7 +1499,9 @@ function onDown(opt){
     return;
   }
   if (currentTool === 'erase'){
-    if (opt.target && !opt.target.isBackground){ canvas.remove(opt.target); toast('Erased'); }
+    if (opt.target && !opt.target.isBackground){
+      canvas.remove(opt.target); pushHistory(); toast('Erased');
+    }
     return;
   }
 
@@ -1426,6 +1516,54 @@ function onDown(opt){
     return;
   }
 
+  // Leader line: two-click tool
+  if (currentTool === 'leader'){
+    const p = canvas.getPointer(opt.e);
+    if (!leaderStart){
+      leaderStart = p;
+      leaderPreview = new fabric.Line([p.x, p.y, p.x, p.y], {
+        stroke:'#7c3aed', strokeWidth:1.5, strokeDashArray:[5,4],
+        selectable:false, evented:false,
+      });
+      canvas.add(leaderPreview);
+      toast('Now click the target point');
+    } else {
+      // Finalize
+      canvas.remove(leaderPreview);
+      const sColor = $('stroke-color').value;
+      const ln = new fabric.Line([leaderStart.x, leaderStart.y, p.x, p.y], {
+        stroke: sColor, strokeWidth: 1.5, selectable:true, evented:true,
+        strokeUniform: true,
+      });
+      ln._isLeader = true;
+      ln._uid = uid();
+      canvas.add(ln);
+      // Add a small tag circle at start
+      const tag = mkCircle(leaderStart.x, leaderStart.y, 4,
+        { fill: sColor, stroke:'#ffffff', strokeWidth: 1 });
+      tag._isLeader = true;
+      tag._uid = uid();
+      canvas.add(tag);
+      // Auto add a text at start
+      const txt = new fabric.IText('NOTE', {
+        left: leaderStart.x + 10, top: leaderStart.y - 8,
+        fontSize: 11, fill: '#0f172a',
+        fontFamily: 'system-ui, sans-serif', fontWeight: '600',
+        backgroundColor: 'rgba(255,255,255,.85)', padding: 2,
+        selectable: true, evented: true, perPixelTargetFind: false,
+      });
+      txt._uid = uid();
+      txt._isAnnotation = true;
+      canvas.add(txt);
+      leaderStart = null; leaderPreview = null;
+      canvas.renderAll();
+      pushHistory();
+      toast('Leader line added', 'ok');
+      setTool('select');
+    }
+    return;
+  }
+
   if (currentTool === 'select'){
     if (opt.target && opt.e.altKey && !opt.target.isBackground){
       const orig = opt.target;
@@ -1435,6 +1573,7 @@ function onDown(opt){
                 _uid: uid() });
         makeHitFriendly(c);
         canvas.add(c); canvas.setActiveObject(c); canvas.renderAll();
+        pushHistory();
         toast('Duplicated');
       }, CUSTOM_PROPS);
     }
@@ -1530,6 +1669,13 @@ function onMove(opt){
     applyView();
     return;
   }
+
+  if (currentTool === 'leader' && leaderPreview){
+    leaderPreview.set({ x2: raw.x, y2: raw.y });
+    canvas.requestRenderAll();
+    return;
+  }
+
   if (currentTool === 'polyline' && polyPreview){
     const p = snapPt(raw);
     const pts = polyPoints.concat([p]);
@@ -1631,7 +1777,7 @@ function onUp(){
   }
   activeShape = null; shiftAxis = null;
   canvas.requestRenderAll();
-  markDirty(); refreshPanels();
+  markDirty(); refreshPanels(); refreshLegend();
   syncSelectionPanel();
 }
 
@@ -1693,7 +1839,7 @@ function placeStencil(id, x, y){
     setTimeout(() => setTool('select'), 30);
 
     markDirty();
-    refreshPanels();
+    refreshPanels(); refreshLayers(); refreshLegend();
     syncSelectionPanel();
   } catch(e){
     toast('Stencil failed: ' + e.message, 'err');
@@ -1719,11 +1865,12 @@ function placeLabel(id, x, y){
   hidePendingBanner();
   setTimeout(() => setTool('select'), 30);
   markDirty();
+  refreshLegend();
   syncSelectionPanel();
 }
 
 /* =====================================================================
-   13. TOOLS + pending banner
+   13. TOOLS
    ===================================================================== */
 function showPendingBanner(name){
   $('pending-name').textContent = name;
@@ -1735,6 +1882,10 @@ function hidePendingBanner(){
 
 function setTool(tool){
   if (currentTool === 'polyline' && polyPreview) finalizePolyline();
+  if (currentTool === 'leader'){
+    if (leaderPreview) canvas.remove(leaderPreview);
+    leaderPreview = null; leaderStart = null;
+  }
   pendingStencil = null;
   pendingLabelId = null;
   hidePendingBanner();
@@ -1784,6 +1935,52 @@ document.querySelectorAll('.stencil').forEach(el => {
   };
 });
 
+/* Stencil search filter */
+$('stencil-search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase().trim();
+  document.querySelectorAll('#stencil-panel .stencil').forEach(el => {
+    const name = (el.dataset.name || el.textContent).toLowerCase();
+    el.classList.toggle('hidden', q && !name.includes(q));
+  });
+  // Hide empty category headers
+  const headers = document.querySelectorAll('#stencil-panel h4[data-cat]');
+  headers.forEach(h => {
+    let sibling = h.nextElementSibling;
+    let hasVisible = false;
+    while (sibling && sibling.tagName !== 'H4'){
+      if (sibling.classList.contains('stencil-grid')){
+        if (sibling.querySelector('.stencil:not(.hidden)')) hasVisible = true;
+      }
+      sibling = sibling.nextElementSibling;
+    }
+    h.style.display = hasVisible ? '' : 'none';
+    // Hide the grid too if empty
+    let sib = h.nextElementSibling;
+    while (sib && sib.tagName !== 'H4'){
+      if (sib.classList.contains('stencil-grid')){
+        sib.style.display = hasVisible ? '' : 'none';
+      }
+      sib = sib.nextElementSibling;
+    }
+  });
+});
+
+/* Layer stack panel */
+$('tbtn-layers').onclick = () => {
+  $('layer-stack').classList.toggle('open');
+  refreshLayers();
+};
+/* Legend panel */
+$('tbtn-legend').onclick = () => {
+  $('legend-box').classList.toggle('open');
+  refreshLegend();
+};
+$('ct-toggle-legend').onclick = () => {
+  $('legend-box').classList.toggle('open');
+  $('ct-toggle-legend').classList.toggle('active');
+  refreshLegend();
+};
+
 /* =====================================================================
    14. HELPERS
    ===================================================================== */
@@ -1813,7 +2010,82 @@ function hexAlphaOf(rgba){
 }
 
 /* =====================================================================
-   15. SELECTION PANEL
+   15. LAYER STACK PANEL
+   ===================================================================== */
+function refreshLayers(){
+  const objs = canvas.getObjects().filter(o => !o.isBackground);
+  const list = $('layer-list');
+  if (!list) return;
+  list.innerHTML = '';
+  $('layer-count').textContent = '(' + objs.length + ')';
+  const active = canvas.getActiveObject();
+  objs.slice().reverse().forEach(o => {
+    const el = document.createElement('div');
+    el.className = 'layer' + (active === o ? ' sel' : '');
+    const icon = {
+      path:'✏️', line:'📏', rect:'⬛', circle:'⭕',
+      'i-text':'🔤', text:'🔤', textbox:'🔤', group:'📦',
+      triangle:'▲', polygon:'◇', polyline:'↗️'
+    }[o.type] || '▪';
+    let name = o._stencilLabel || o.text ||
+      (o._isStencilLabel ? (o._labelKind || 'Label') :
+        CABLE_COLORS[String(o.stroke || '').toLowerCase()] || o.type || '?');
+    name = String(name).slice(0, 20);
+    el.innerHTML = `<span class="ico">${icon}</span>
+                    <span class="nm">${name}</span>
+                    <span class="eye">${o.visible === false ? '🚫' : '👁️'}</span>`;
+    el.onclick = (ev) => {
+      if (ev.target.classList.contains('eye')){
+        o.visible = (o.visible === false);
+        canvas.renderAll();
+        refreshLayers();
+        return;
+      }
+      canvas.discardActiveObject();
+      canvas.setActiveObject(o);
+      canvas.renderAll();
+      refreshLayers();
+      syncSelectionPanel();
+    };
+    list.appendChild(el);
+  });
+  if (!objs.length){
+    list.innerHTML = '<div style="color:#66748f;font-size:.7rem;padding:4px 0">No objects</div>';
+  }
+}
+
+/* =====================================================================
+   16. LEGEND PANEL
+   ===================================================================== */
+function refreshLegend(){
+  const wrap = $('legend-items');
+  if (!wrap) return;
+  const items = {};
+  canvas.getObjects().forEach(o => {
+    if (o.isBackground || o._isAnnotation || o._isStencilLabel) return;
+    const col = String(o.stroke || o.fill || '#666').toLowerCase();
+    const key = col.startsWith('#') ? col.slice(0, 7) : col;
+    items[key] = (items[key] || 0) + 1;
+  });
+  wrap.innerHTML = '';
+  const keys = Object.keys(items);
+  if (!keys.length){
+    wrap.innerHTML = '<div style="color:#66748f;font-size:.7rem;padding:4px 0">No cables</div>';
+    return;
+  }
+  keys.forEach(k => {
+    const el = document.createElement('div');
+    el.className = 'item';
+    const label = CABLE_COLORS[k] || 'Cable';
+    el.innerHTML = `<span class="dot" style="background:${k}"></span>
+                    <span class="nm">${label}</span>
+                    <span class="cnt">${items[k]}</span>`;
+    wrap.appendChild(el);
+  });
+}
+
+/* =====================================================================
+   17. SELECTION PANEL
    ===================================================================== */
 function showSelField(id, on){
   const el = $(id);
@@ -1856,6 +2128,7 @@ function syncSelectionPanel(){
   const typeLabel = multi ? `${objs.length} objects selected`
                           : (o._isStencilLabel ? 'Label'
                             : o._isAnnotation ? 'Dimension label'
+                            : o._isLeader ? 'Leader'
                             : o.type === 'group' ? (o._stencilLabel || 'Group')
                             : o.type);
   $('sel-type').textContent = typeLabel;
@@ -1951,10 +2224,11 @@ function applyToSelection(fn){
   canvas.requestRenderAll();
   suppressPanelSync = false;
   markDirty();
+  refreshLegend();
 }
 
 /* =====================================================================
-   16. PROPERTY EVENT BINDINGS
+   18. PROPERTY EVENT BINDINGS
    ===================================================================== */
 function bindPropertyControls(){
   const bind = (id, ev, handler) => {
@@ -2128,10 +2402,21 @@ function bindPropertyControls(){
   bind('sel-paste', 'click', () => pasteClipboard());
   bind('sel-dup', 'click', () => duplicateSel());
   bind('sel-del', 'click', () => deleteSel());
+
+  /* Collapsible sections */
+  document.querySelectorAll('#props h3[data-target]').forEach(h => {
+    h.onclick = () => {
+      const target = h.getAttribute('data-target');
+      const sec = $(target);
+      if (!sec) return;
+      sec.classList.toggle('collapsed');
+      h.classList.toggle('collapsed');
+    };
+  });
 }
 
 /* =====================================================================
-   17. COPY / PASTE
+   19. COPY / PASTE
    ===================================================================== */
 function copySelection(){
   const objs = getEditableTargets();
@@ -2173,7 +2458,8 @@ function pasteClipboard(){
         if (pasted.length === 1) canvas.setActiveObject(pasted[0]);
         else canvas.setActiveObject(new fabric.ActiveSelection(pasted, { canvas }));
         canvas.requestRenderAll();
-        refreshPanels(); syncSelectionPanel();
+        refreshPanels(); refreshLegend(); refreshLayers();
+        syncSelectionPanel();
         toast(`Pasted ${pasted.length} object${pasted.length===1?'':'s'}`, 'ok');
       }
     }, CUSTOM_PROPS);
@@ -2186,23 +2472,24 @@ function cutSelection(){
     objs.forEach(o => canvas.remove(o));
     canvas.discardActiveObject();
     canvas.renderAll();
-    refreshPanels(); syncSelectionPanel();
+    refreshPanels(); refreshLegend(); refreshLayers();
+    syncSelectionPanel();
     toast('Cut', 'ok');
   }, 30);
 }
 
 /* =====================================================================
-   18. HISTORY
+   20. HISTORY
    ===================================================================== */
 const MAX_HISTORY = 80, MAX_BYTES = 4_000_000;
 function serialize(){
   try {
     return JSON.stringify({
-      v: 6,
+      v: 7,
       canvas: { w: canvas.getWidth(), h: canvas.getHeight() },
       fabric: canvas.toJSON(CUSTOM_PROPS),
     });
-  } catch(e){ return '{"v":6,"fabric":{"objects":[]}}'; }
+  } catch(e){ return '{"v":7,"fabric":{"objects":[]}}'; }
 }
 let saveTimer;
 function markDirty(){
@@ -2246,21 +2533,22 @@ function applySnapshot(j){
         if (!o._uid) o._uid = uid();
       });
       canvas.renderAll();
-      refreshPanels();
+      refreshPanels(); refreshLegend(); refreshLayers();
       syncSelectionPanel();
     });
   } catch(e){ toast('Restore failed: ' + e.message, 'err'); }
 }
 
 /* =====================================================================
-   19. ACTIONS
+   21. ACTIONS
    ===================================================================== */
 function deleteSel(){
   const objs = getEditableTargets();
   if (!objs.length){ toast('Nothing selected', 'warn'); return; }
   objs.forEach(o => canvas.remove(o));
   canvas.discardActiveObject();
-  refreshPanels(); syncSelectionPanel(); toast('Deleted ' + objs.length);
+  refreshPanels(); refreshLegend(); refreshLayers();
+  syncSelectionPanel(); toast('Deleted ' + objs.length);
 }
 function duplicateSel(){
   const objs = getEditableTargets();
@@ -2279,7 +2567,8 @@ function duplicateSel(){
         if (newOnes.length === 1) canvas.setActiveObject(newOnes[0]);
         else canvas.setActiveObject(new fabric.ActiveSelection(newOnes, { canvas }));
         canvas.renderAll();
-        refreshPanels(); syncSelectionPanel();
+        refreshPanels(); refreshLegend(); refreshLayers();
+        syncSelectionPanel();
       }
     }, CUSTOM_PROPS);
   });
@@ -2305,11 +2594,12 @@ function clearAll(){
   if (!n){ toast('Nothing to clear', 'warn'); return; }
   if (!confirm(`Clear ${n} object(s)?`)) return;
   canvas.getObjects().forEach(o => canvas.remove(o));
-  refreshPanels(); syncSelectionPanel(); toast('Cleared');
+  refreshPanels(); refreshLegend(); refreshLayers();
+  syncSelectionPanel(); toast('Cleared');
 }
 
 /* =====================================================================
-   20. IMAGE
+   22. IMAGE
    ===================================================================== */
 const MAX_IMAGE_DIM = 4096;
 function downscaleIfNeeded(dataUrl){
@@ -2358,6 +2648,7 @@ $('tb-open').onclick = () => {
   inp.type = 'file'; inp.accept = 'image/*';
   inp.onchange = e => {
     const f = e.target.files[0]; if (!f) return;
+    if (f.size > 30 * 1024 * 1024){ toast('Image too large (>30 MB)', 'err'); return; }
     const r = new FileReader();
     r.onload = ev => loadImage(ev.target.result, f.name);
     r.readAsDataURL(f);
@@ -2394,7 +2685,7 @@ document.addEventListener('drop', e => {
 });
 
 /* =====================================================================
-   21. VIEW
+   23. VIEW
    ===================================================================== */
 function applyView(){
   $('canvas-holder').style.transform =
@@ -2443,7 +2734,7 @@ window.addEventListener('mousemove', e => {
 });
 
 /* =====================================================================
-   22. PANELS
+   24. PANELS
    ===================================================================== */
 function refreshPanels(){ updateHud(); updateStorageInfo(); }
 function updateHud(){
@@ -2463,7 +2754,7 @@ function updateStorageInfo(){
 }
 
 /* =====================================================================
-   23. EXPORT
+   25. EXPORT
    ===================================================================== */
 function download(blob, name){
   const a = document.createElement('a');
@@ -2494,7 +2785,7 @@ function exportPNG(scale){
 function exportJSON(){
   try {
     const data = {
-      version: 6, kind: 'telecom_site_layout',
+      version: 7, kind: 'telecom_site_layout',
       exported: new Date().toISOString(),
       canvas: { width: canvas.getWidth(), height: canvas.getHeight() },
       scale: { m_per_px: parseFloat($('scale-m').value || 0.05),
@@ -2512,6 +2803,7 @@ function loadJSONDialog(){
   inp.type = 'file'; inp.accept = '.json';
   inp.onchange = e => {
     const f = e.target.files[0]; if (!f) return;
+    if (f.size > 50 * 1024 * 1024){ toast('JSON too large (>50 MB)', 'err'); return; }
     const r = new FileReader();
     r.onload = ev => {
       let parsed;
@@ -2536,7 +2828,9 @@ function loadJSONDialog(){
             makeHitFriendly(o);
             if (!o._uid) o._uid = uid();
           });
-          canvas.renderAll(); refreshPanels(); syncSelectionPanel();
+          canvas.renderAll();
+          refreshPanels(); refreshLegend(); refreshLayers();
+          syncSelectionPanel();
           toast('Layout loaded', 'ok');
         });
       } catch(err){ toast('Load failed: ' + err.message, 'err'); }
@@ -2562,7 +2856,7 @@ function printPlan(){
 }
 
 /* =====================================================================
-   24. SAVE / RESTORE
+   26. SAVE / RESTORE
    ===================================================================== */
 function saveLocal(){
   if (!Storage.available()) return;
@@ -2585,7 +2879,9 @@ function loadLocal(){
         makeHitFriendly(o);
         if (!o._uid) o._uid = uid();
       });
-      canvas.renderAll(); refreshPanels(); syncSelectionPanel();
+      canvas.renderAll();
+      refreshPanels(); refreshLegend(); refreshLayers();
+      syncSelectionPanel();
       const n = canvas.getObjects().filter(o => !o.isBackground).length;
       toast(`Restored session (${n} object${n===1?'':'s'})`, 'ok');
     });
@@ -2594,7 +2890,7 @@ function loadLocal(){
 }
 
 /* =====================================================================
-   25. KEYBOARD
+   27. KEYBOARD
    ===================================================================== */
 document.addEventListener('keydown', e => {
   const editing = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
@@ -2638,6 +2934,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'f') fitView();
   else if (k === 'escape'){
     if (polyPreview) finalizePolyline();
+    if (leaderPreview){ canvas.remove(leaderPreview); leaderPreview = null; leaderStart = null; }
     pendingStencil = null; pendingLabelId = null;
     hidePendingBanner();
     canvas.discardActiveObject(); canvas.renderAll();
@@ -2656,7 +2953,7 @@ window.addEventListener('blur', () => {
 });
 
 /* =====================================================================
-   26. DIAGNOSTICS
+   28. DIAGNOSTICS
    ===================================================================== */
 function runDiagnostics(){
   const lines = [
@@ -2682,16 +2979,18 @@ function runDiagnostics(){
 }
 
 /* =====================================================================
-   27. TOOLBAR BINDINGS
+   29. TOOLBAR BINDINGS
    ===================================================================== */
 $('tb-new').onclick = () => {
   if (!confirm('New site plan? Unsaved work will be lost.')) return;
   canvas.getObjects().forEach(o => canvas.remove(o));
   canvas.setBackgroundImage(null, canvas.renderAll.bind(canvas));
   canvas.setWidth(CW); canvas.setHeight(CH);
-  clipboard = [];
+  clipboard = []; undoStack = []; redoStack = [];
   fileName = 'Untitled Site Plan'; $('file-label').textContent = fileName;
-  fitView(); refreshPanels(); syncSelectionPanel();
+  fitView();
+  refreshPanels(); refreshLegend(); refreshLayers();
+  syncSelectionPanel();
   toast('New plan started', 'ok');
 };
 $('tb-load-json').onclick = loadJSONDialog;
@@ -2731,13 +3030,15 @@ $('btn-reset').onclick = () => {
 function buildPalette(){
   const wrap = $('palette');
   wrap.innerHTML = '';
-  PALETTE.forEach(c => {
+  PALETTE.forEach(({ hex, label }) => {
     const sw = document.createElement('div');
     sw.className = 'swatch';
-    sw.style.background = c;
+    sw.style.background = hex;
+    sw.title = label;
+    sw.innerHTML = `<span class="lbl">${label}</span>`;
     sw.onclick = () => {
-      $('stroke-color').value = c;
-      $('fill-color').value = c;
+      $('stroke-color').value = hex;
+      $('fill-color').value = hex;
       document.querySelectorAll('.swatch').forEach(s => s.classList.remove('sel'));
       sw.classList.add('sel');
     };
@@ -2746,7 +3047,7 @@ function buildPalette(){
 }
 
 /* =====================================================================
-   28. BOOT
+   30. BOOT
    ===================================================================== */
 (async function boot(){
   try {
@@ -2764,8 +3065,9 @@ function buildPalette(){
     setTimeout(() => {
       loadLocal();
       Boot.ready();
+      refreshLayers(); refreshLegend();
       syncSelectionPanel();
-      toast('Ready — pick a stencil and click canvas to place', 'ok');
+      toast('Ready — pick a stencil or tool', 'ok');
     }, 200);
   } catch(e){
     console.error('[boot]', e);
